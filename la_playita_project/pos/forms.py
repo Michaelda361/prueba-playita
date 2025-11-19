@@ -90,12 +90,8 @@ class PedidoForm(forms.ModelForm):
 
     class Meta:
         model = Pedido
-        fields = ('cliente', 'fecha_entrega_estimada', 'observaciones')
+        fields = ('cliente', 'observaciones')
         widgets = {
-            'fecha_entrega_estimada': forms.DateTimeInput(attrs={
-                'class': 'form-control',
-                'type': 'datetime-local'
-            }),
             'observaciones': forms.Textarea(attrs={
                 'class': 'form-control',
                 'rows': 4,

@@ -9,7 +9,7 @@ from django.views.decorators.http import require_POST
 from django.template.loader import render_to_string
 from weasyprint import HTML
 from inventory.models import Producto, Lote
-from clients.models import Cliente, PuntosFidelizacion
+from clients.models import Cliente
 from .models import Venta, VentaDetalle, Pago
 from .forms import ProductoSearchForm, VentaForm
 from users.decorators import check_user_role
@@ -18,7 +18,7 @@ from datetime import datetime
 from django.views.decorators.csrf import csrf_exempt
 
 # Constante: 1 punto = $15.000
-VALOR_PUNTO = Decimal('15000.00')
+# VALOR_PUNTO = Decimal('15000.00')
 
 @login_required
 @check_user_role(allowed_roles=['Administrador', 'Vendedor'])
@@ -136,27 +136,27 @@ def procesar_venta(request):
             producto.stock_actual -= cantidad
             producto.save()
         
-        # ===== AGREGAR PUNTOS AL CLIENTE =====
-        if cliente.id != 1:  # No agregar puntos a "Consumidor Final"
-            puntos_ganados = (total_venta / VALOR_PUNTO).quantize(Decimal('0.01'))
+        # # ===== AGREGAR PUNTOS AL CLIENTE =====
+        # if cliente.id != 1:  # No agregar puntos a "Consumidor Final"
+        #     puntos_ganados = (total_venta / VALOR_PUNTO).quantize(Decimal('0.01'))
             
-            # Actualizar puntos del cliente
-            cliente.puntos_totales += puntos_ganados
-            cliente.save()
+        #     # Actualizar puntos del cliente
+        #     cliente.puntos_totales += puntos_ganados
+        #     cliente.save()
             
-            # Registrar transacción de puntos
-            PuntosFidelizacion.objects.create(
-                cliente_id=cliente.id,
-                tipo=PuntosFidelizacion.TIPO_GANANCIA,
-                puntos=puntos_ganados,
-                descripcion=f'Compra de ${total_venta} - Venta #{nueva_venta.id}',
-                venta_id=nueva_venta.id
-            )
+        #     # Registrar transacción de puntos
+        #     PuntosFidelizacion.objects.create(
+        #         cliente_id=cliente.id,
+        #         tipo=PuntosFidelizacion.TIPO_GANANCIA,
+        #         puntos=puntos_ganados,
+        #         descripcion=f'Compra de ${total_venta} - Venta #{nueva_venta.id}',
+        #         venta_id=nueva_venta.id
+        #     )
         
         return JsonResponse({
             'success': True,
             'venta_id': nueva_venta.id,
-            'puntos_ganados': float(puntos_ganados) if cliente.id != 1 else 0,
+            # 'puntos_ganados': float(puntos_ganados) if cliente.id != 1 else 0, # Comentado temporalmente
             'mensaje': f'Venta #{nueva_venta.id} procesada con éxito.'
         })
     

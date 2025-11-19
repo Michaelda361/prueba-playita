@@ -6,7 +6,7 @@ from django.conf import settings
 class Venta(models.Model):
     fecha_venta = models.DateTimeField(default=timezone.now)
     canal_venta = models.CharField(max_length=20, default='Tienda')
-    cliente = models.ForeignKey('clients.Cliente', on_delete=models.PROTECT, null=True, blank=True)
+    cliente = models.ForeignKey('clients.Cliente', on_delete=models.PROTECT)
     usuario = models.ForeignKey(settings.AUTH_USER_MODEL, models.PROTECT)
     pedido = models.ForeignKey('Pedido', null=True, blank=True, on_delete=models.SET_NULL, db_column='pedido_id')
     total_venta = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
@@ -47,6 +47,7 @@ class Pedido(models.Model):
     usuario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, help_text="Empleado que registra el pedido.")
     fecha_creacion = models.DateTimeField(default=timezone.now, db_column='fecha_pedido')
     fecha_entrega_estimada = models.DateTimeField(null=True, blank=True)
+
     estado = models.CharField(max_length=20, choices=ESTADO_CHOICES, default=ESTADO_PENDIENTE)
     total = models.DecimalField(max_digits=12, decimal_places=2, default=0.00, db_column='total_pedido')
     observaciones = models.TextField(blank=True, null=True)

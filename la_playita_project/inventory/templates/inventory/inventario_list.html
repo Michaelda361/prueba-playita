@@ -97,16 +97,36 @@
         const guardarCategoriaBtn = document.getElementById('guardarCategoriaBtn');
         const nombreCategoriaInput = document.getElementById('nombreCategoria');
 
-        function openProductModal(action) {
+        function openProductModal(action, productData = null) {
             const modalTitle = document.getElementById('productModalLabel');
             const productForm = document.getElementById('productForm');
-            // Resetear el formulario
-            productForm.reset();
+            productForm.reset(); // Resetear el formulario
 
             if (action === 'new') {
                 modalTitle.textContent = 'Nuevo Producto';
                 productForm.action = "{% url 'inventory:producto_create_ajax' %}";
+            } else if (action === 'edit' && productData) {
+                modalTitle.textContent = 'Editar Producto';
+                productForm.action = "{% url 'inventory:producto_update' 0 %}".replace('0', productData.id); // Set the correct update URL
+
+                // Fetch full product details for editing
+                fetch("{% url 'inventory:producto_detail_json' 0 %}".replace('0', productData.id))
+                    .then(response => response.json())
+                    .then(data => {
+                        document.getElementById('id_nombre').value = data.nombre;
+                        document.getElementById('id_precio_unitario').value = data.precio_unitario;
+                        document.getElementById('id_descripcion').value = data.descripcion;
+                        document.getElementById('id_stock_minimo').value = data.stock_minimo;
+                        document.getElementById('id_categoria').value = data.categoria_id;
+                        productModal.show(); // Show modal after data is loaded
+                    })
+                    .catch(error => {
+                        console.error('Error fetching product details for edit:', error);
+                        Swal.fire('Error', 'No se pudieron cargar los detalles del producto para editar.', 'error');
+                    });
+                return; // Exit to prevent modal.show() from being called twice
             }
+            productModal.show(); // Show modal for 'new' action
         }
 
         async function renderProductDetails(data) {

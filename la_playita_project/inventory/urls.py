@@ -8,6 +8,7 @@ urlpatterns = [
     path('alertas/', views.alertas_stock_list, name='alertas_stock'),
     path('producto/crear/', views.producto_create, name='producto_create'),
     path('producto/crear/ajax/', views.producto_create_ajax, name='producto_create_ajax'),
+    path('producto/<int:pk>/json/', views.producto_detail_json, name='producto_detail_json'),
     path('producto/<int:pk>/editar/', views.producto_update, name='producto_update'),
     path('producto/<int:pk>/eliminar/', views.producto_delete, name='producto_delete'),
     path('producto/<int:pk>/lotes/', views.producto_lotes_json, name='producto_lotes_json'),

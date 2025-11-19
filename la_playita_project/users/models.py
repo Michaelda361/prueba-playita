@@ -1,29 +1,44 @@
 from django.db import models
-from django.contrib.auth.models import AbstractUser, Group, Permission
+from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin, BaseUserManager
 from django.utils import timezone
 
 
 class Rol(models.Model):
     nombre = models.CharField(max_length=35, unique=True)
 
-    def __str__(self):
-        return self.nombre
-
     class Meta:
         managed = False
         db_table = 'rol'
 
+    def __str__(self):
+        return self.nombre
 
-class Usuario(AbstractUser):
-    """
-    Custom User model inheriting from AbstractUser, mapped to the existing 'usuario' table.
-    """
-    password = models.CharField(db_column='contrasena', max_length=255)
+
+class UsuarioManager(BaseUserManager):
+    def create_user(self, username, password=None, **extra_fields):
+        if not username:
+            raise ValueError("El usuario debe tener documento")
+
+        user = self.model(username=username, **extra_fields)
+        user.set_password(password)
+        user.save(using=self._db)
+        return user
+
+    def create_superuser(self, username, password=None, **extra_fields):
+        extra_fields.setdefault("rol", Rol.objects.get(nombre="Administrador"))
+        return self.create_user(username, password, **extra_fields)
+
+
+class Usuario(AbstractBaseUser, PermissionsMixin):
+    # Campos EXACTOS de tu tabla real
     username = models.CharField(
         db_column='documento',
-        max_length=150,
-        unique=True,
-        help_text='Documento de identidad.'
+        max_length=20,
+        unique=True
+    )
+    password = models.CharField(
+        db_column='contrasena',
+        max_length=255
     )
     first_name = models.CharField(db_column='nombres', max_length=50)
     last_name = models.CharField(db_column='apellidos', max_length=50)
@@ -34,78 +49,31 @@ class Usuario(AbstractUser):
     telefono = models.CharField(max_length=20, blank=True, null=True)
     estado = models.CharField(max_length=20, default='activo')
 
-    # En el dump SQL `usuario.rol_id` es NOT NULL, alineamos permitiendo no-nulo y protegiendo eliminaciones
-    rol = models.ForeignKey('Rol', on_delete=models.PROTECT, null=False, db_column='rol_id')
-
-    groups = models.ManyToManyField(
-        Group,
-        verbose_name='groups',
-        blank=True,
-        help_text='The groups this user belongs to. A user will get all permissions granted to each of their groups.',
-        related_name="usuario_set",
-        related_query_name="usuario",
-        through='UsuarioGroups',
-    )
-    user_permissions = models.ManyToManyField(
-        Permission,
-        verbose_name='user permissions',
-        blank=True,
-        help_text='Specific permissions for this user.',
-        related_name="usuario_set",
-        related_query_name="usuario",
-        through='UsuarioUserPermissions',
+    rol = models.ForeignKey(
+        Rol,
+        on_delete=models.PROTECT,
+        db_column='rol_id'
     )
 
-    USERNAME_FIELD = 'username'
-    REQUIRED_FIELDS = ['email', 'first_name', 'last_name']
+    is_staff = models.BooleanField(default=False)
+    is_superuser = models.BooleanField(default=False)
+
+    USERNAME_FIELD = "username"
+    REQUIRED_FIELDS = ["email", "first_name", "last_name"]
+
+    objects = UsuarioManager()
+
+    class Meta:
+        managed = True
+        db_table = "usuario"
 
     @property
     def is_active(self):
-        return self.estado == 'activo'
-
-    @is_active.setter
-    def is_active(self, value):
-        self.estado = 'activo' if value else 'inactivo'
+        return self.estado == "activo"
 
     @property
     def is_staff(self):
-        return self.is_active
-
-    @is_staff.setter
-    def is_staff(self, value):
-        pass
-
-    @property
-    def is_superuser(self):
-        return self.is_active and self.rol and self.rol.nombre == 'Administrador'
-
-    @is_superuser.setter
-    def is_superuser(self, value):
-        pass
+        return self.rol.nombre == "Administrador"
 
     def __str__(self):
         return f"{self.first_name} {self.last_name} ({self.username})"
-
-    class Meta:
-        managed = False
-        db_table = 'usuario'
-
-
-class UsuarioGroups(models.Model):
-    usuario = models.ForeignKey(Usuario, models.DO_NOTHING, db_column='user_id')
-    group = models.ForeignKey(Group, models.DO_NOTHING)
-
-    class Meta:
-        managed = False
-        db_table = 'auth_user_groups'
-        unique_together = (('usuario', 'group'),)
-
-
-class UsuarioUserPermissions(models.Model):
-    usuario = models.ForeignKey(Usuario, models.DO_NOTHING, db_column='user_id')
-    permission = models.ForeignKey(Permission, models.DO_NOTHING)
-
-    class Meta:
-        managed = False
-        db_table = 'auth_user_user_permissions'
-        unique_together = (('usuario', 'permission'),)

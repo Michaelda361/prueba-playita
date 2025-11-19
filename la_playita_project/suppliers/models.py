@@ -46,8 +46,8 @@ class Reabastecimiento(models.Model):
 
     fecha = models.DateTimeField(default=timezone.now)
     costo_total = models.DecimalField(max_digits=12, decimal_places=2)
-    estado = models.CharField(max_length=20, choices=ESTADO_CHOICES, default=ESTADO_SOLICITADO, blank=True, null=True)
-    forma_pago = models.CharField(max_length=25, choices=FORMA_PAGO_CHOICES, blank=True, null=True)
+    estado = models.CharField(max_length=20, choices=ESTADO_CHOICES, default=ESTADO_SOLICITADO)
+    forma_pago = models.CharField(max_length=25, choices=FORMA_PAGO_CHOICES, default=FORMA_PAGO_EFECTIVO)
     observaciones = models.TextField(blank=True, null=True)
     proveedor = models.ForeignKey(Proveedor, on_delete=models.PROTECT)
 
