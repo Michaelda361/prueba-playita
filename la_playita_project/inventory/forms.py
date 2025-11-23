@@ -1,7 +1,7 @@
 from django import forms
 from django.core.validators import MinValueValidator
 from .models import Producto, Lote, Categoria
-from suppliers.models import Reabastecimiento, ReabastecimientoDetalle
+from suppliers.models import Reabastecimiento, ReabastecimientoDetalle # Ensure Reabastecimiento is imported
 from datetime import date
 from django.forms import inlineformset_factory
 
@@ -69,6 +69,18 @@ class LoteForm(forms.ModelForm):
 
 
 class ReabastecimientoForm(forms.ModelForm):
+    def __init__(self, *args, **kwargs):
+        initial_creation = kwargs.pop('initial_creation', False)
+        super().__init__(*args, **kwargs)
+        if initial_creation:
+            # Restrict choices for 'estado' when creating a new restock
+            self.fields['estado'].choices = [
+                (Reabastecimiento.ESTADO_SOLICITADO, Reabastecimiento.ESTADO_SOLICITADO)
+            ]
+            self.fields['estado'].initial = Reabastecimiento.ESTADO_SOLICITADO # Set default to Solicitado
+            self.fields['estado'].widget.attrs['disabled'] = True # Disable it to prevent modification
+
+
     class Meta:
         model = Reabastecimiento
         fields = ['proveedor', 'forma_pago', 'observaciones', 'estado']

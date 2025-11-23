@@ -46,7 +46,22 @@
                                 <td>{{ r.proveedor.nombre_empresa }}</td>
                                 <td>{{ r.costo_total|currency }}</td>
                                 <td>{{ r.get_forma_pago_display }}</td>
-                                <td><span class="badge bg-info text-dark">{{ r.get_estado_display }}</span></td>
+                                <td>
+                                    <div class="d-inline-flex align-items-center">
+                                        {% if r.estado == 'solicitado' %}
+                                            <span class="badge bg-warning text-dark">{{ r.get_estado_display }}</span>
+                                        {% elif r.estado == 'recibido' %}
+                                            <span class="badge bg-success">{{ r.get_estado_display }}</span>
+                                        {% elif r.estado == 'cancelado' %}
+                                            <span class="badge bg-danger">{{ r.get_estado_display }}</span>
+                                        {% else %}
+                                            <span class="badge bg-info text-dark">{{ r.get_estado_display }}</span>
+                                        {% endif %}
+                                        {% if r.tiene_ventas %}
+                                            <i class="fas fa-lock ms-1" title="Tiene ventas asociadas, no se puede modificar."></i>
+                                        {% endif %}
+                                    </div>
+                                </td>
                                 <td>{{ r.observaciones|default:'-' }}</td>
                                 {% if user|has_role:'Administrador' %}
                                 <td class="text-end">
@@ -57,11 +72,13 @@
                                             <i class="fas fa-check-circle"></i>
                                         </button>
                                         <button type="button" class="btn btn-sm btn-outline-primary" 
-                                                onclick="editarReabastecimiento('{{ r.id }}')">
+                                                onclick="editarReabastecimiento('{{ r.id }}')"
+                                                {% if r.tiene_ventas %}disabled title="No se puede editar, tiene productos vendidos."{% endif %}>
                                             <i class="fas fa-edit"></i>
                                         </button>
                                         <button type="button" class="btn btn-sm btn-outline-danger" 
-                                                onclick="eliminarReabastecimiento('{{ r.id }}')">
+                                                onclick="eliminarReabastecimiento('{{ r.id }}')"
+                                                {% if r.tiene_ventas %}disabled title="No se puede eliminar, tiene productos vendidos."{% endif %}>
                                             <i class="fas fa-trash"></i>
                                         </button>
                                     </div>
@@ -769,7 +786,10 @@ document.addEventListener('DOMContentLoaded', function () {
     window.editarReabastecimiento = async function(id) {
         try {
             const response = await fetch(`{% url 'suppliers:reabastecimiento_editar' 0 %}`.replace('0', id));
-            if (!response.ok) throw new Error('Error al cargar el reabastecimiento');
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Error al cargar el reabastecimiento');
+            }
             const data = await response.json();
 
             document.getElementById('editReabastecimientoId').value = data.id;
@@ -801,7 +821,7 @@ document.addEventListener('DOMContentLoaded', function () {
             Swal.fire({
                 icon: 'error',
                 title: 'Oops...',
-                text: 'Error al intentar editar el reabastecimiento'
+                text: error.message
             });
         }
     }

@@ -86,6 +86,54 @@ def send_supply_request_email(request, reabastecimiento):
         
         msg.send()
 
+# New function to send discrepancy email
+def send_discrepancy_email(reabastecimiento, discrepancias):
+    """
+    Sends an email notification about discrepancies in a received restock.
+    """
+    # Assuming there's an internal email for notifications, or send to admin
+    # For now, let's just print the email content to console
+    subject = f'Discrepancia en Reabastecimiento #{reabastecimiento.id}'
+    
+    context = {
+        'reabastecimiento': reabastecimiento,
+        'proveedor_nombre': reabastecimiento.proveedor.nombre_empresa,
+        'discrepancias': discrepancias,
+        'current_year': datetime.now().year,
+        'logo_src': 'cid:logo', # Use cid for embedded image
+    }
+    
+    html_content = render_to_string('suppliers/emails/reabastecimiento_discrepancia.html', context)
+    text_content = (
+        f"Estimado/a, se ha detectado una discrepancia en el reabastecimiento #{reabastecimiento.id}.\n"
+        f"Proveedor: {reabastecimiento.proveedor.nombre_empresa}\n"
+        "Detalles de la discrepancia:\n"
+    )
+    for disc in discrepancias:
+        text_content += (
+            f"- Producto: {disc['producto_nombre']}, Solicitado: {disc['cantidad_solicitada']}, "
+            f"Recibido: {disc['cantidad_recibida']}\n"
+        )
+
+    # TODO: Replace with actual recipient list (e.g., admin emails) 
+    recipient_list = ["admin@example.com"] 
+    if reabastecimiento.proveedor.correo:
+        recipient_list.append(reabastecimiento.proveedor.correo)
+
+    msg = EmailMultiAlternatives(subject, text_content, None, recipient_list)
+    msg.attach_alternative(html_content, "text/html")
+
+    # Attach logo image
+    logo_path = find_static('core/img/la-playita-logo.png')
+    if logo_path and os.path.exists(logo_path):
+        with open(logo_path, 'rb') as f:
+            logo_image = MIMEImage(f.read())
+            logo_image.add_header('Content-ID', '<logo>') # Set Content-ID
+            msg.attach(logo_image)
+    
+    msg.send()
+    print(f"DEBUG: Discrepancy email sent for Reabastecimiento #{reabastecimiento.id}")
+
 @never_cache
 @login_required
 @check_user_role(allowed_roles=['Administrador'])
@@ -110,7 +158,7 @@ def reabastecimiento_list(request):
             for lote in detalle.lote_set.all()
     )
 
-    form = ReabastecimientoForm()
+    form = ReabastecimientoForm(initial_creation=True)
     formset = ReabastecimientoDetalleFormSet(queryset=ReabastecimientoDetalle.objects.none())
 
     productos_data = list(Producto.objects.values('id', 'precio_unitario'))
@@ -141,6 +189,8 @@ def reabastecimiento_create(request):
         try:
             with transaction.atomic():
                 reab = form.save(commit=False)
+                # Explicitly set the status to 'Solicitado' for new creations
+                reab.estado = Reabastecimiento.ESTADO_SOLICITADO
                 total = sum(
                     d['cantidad'] * float(d['costo_unitario'])
                     for d in formset.cleaned_data if d and not d.get('DELETE')
@@ -191,6 +241,11 @@ def reabastecimiento_editar(request, pk):
     """Vista para obtener datos de un reabastecimiento para editar."""
     try:
         reab = Reabastecimiento.objects.prefetch_related('reabastecimientodetalle_set__producto').get(pk=pk)
+        
+        # New: Check if any lot associated with this restock has sales
+        if Lote.objects.filter(reabastecimiento_detalle__reabastecimiento=reab, ventadetalle__isnull=False).exists():
+            return JsonResponse({'error': 'No se puede editar, tiene productos vendidos.'}, status=400)
+        
         if reab.estado == Reabastecimiento.ESTADO_RECIBIDO:
             return JsonResponse({'error': 'No se puede editar un reabastecimiento recibido.'}, status=400)
 
@@ -212,13 +267,16 @@ def reabastecimiento_editar(request, pk):
 
 @never_cache
 @login_required
-@require_POST
 @check_user_role(allowed_roles=['Administrador'])
 def reabastecimiento_update(request, pk):
     """Actualizar un reabastecimiento."""
     try:
         with transaction.atomic():
             reab = get_object_or_404(Reabastecimiento, pk=pk)
+            # New: Check if any lot associated with this restock has sales
+            if Lote.objects.filter(reabastecimiento_detalle__reabastecimiento=reab, ventadetalle__isnull=False).exists():
+                return JsonResponse({'error': 'No se puede editar, tiene productos vendidos.'}, status=400)
+            
             if reab.estado == Reabastecimiento.ESTADO_RECIBIDO:
                 return JsonResponse({'error': 'No se puede editar un reabastecimiento recibido.'}, status=400)
 
@@ -252,7 +310,6 @@ def reabastecimiento_update(request, pk):
 
 @never_cache
 @login_required
-@require_POST
 @check_user_role(allowed_roles=['Administrador'])
 def reabastecimiento_recibir(request, pk):
     """Marcar un reabastecimiento como 'recibido' y crear lotes."""
@@ -264,6 +321,7 @@ def reabastecimiento_recibir(request, pk):
                 return JsonResponse({'error': 'Este reabastecimiento ya ha sido recibido.'}, status=400)
 
             productos_a_actualizar = set()
+            discrepancias_productos = [] # List to store discrepancies
 
             for detalle_data in data.get('detalles', []):
                 detalle = get_object_or_404(ReabastecimientoDetalle, pk=detalle_data.get('id'), reabastecimiento=reab)
@@ -272,6 +330,14 @@ def reabastecimiento_recibir(request, pk):
 
                 if cantidad_recibida > detalle.cantidad:
                     raise ValueError(f'Cantidad recibida ({cantidad_recibida}) > solicitada ({detalle.cantidad}) para {detalle.producto.nombre}.')
+                
+                # Check for discrepancies
+                if cantidad_recibida < detalle.cantidad:
+                    discrepancias_productos.append({
+                        'producto_nombre': detalle.producto.nombre,
+                        'cantidad_solicitada': detalle.cantidad,
+                        'cantidad_recibida': cantidad_recibida,
+                    })
 
                 detalle.cantidad_recibida = cantidad_recibida
                 if fecha_caducidad_str:
@@ -294,8 +360,9 @@ def reabastecimiento_recibir(request, pk):
                     )
                     productos_a_actualizar.add(detalle.producto)
 
-            for producto in productos_a_actualizar:
-                producto.refresh_from_db()
+            # Check if there are discrepancies and send email
+            if discrepancias_productos:
+                send_discrepancy_email(reab, discrepancias_productos)
 
             reab.estado = Reabastecimiento.ESTADO_RECIBIDO
             reab.save()
@@ -305,7 +372,6 @@ def reabastecimiento_recibir(request, pk):
 
 @never_cache
 @login_required
-@require_POST
 @check_user_role(allowed_roles=['Administrador'])
 def reabastecimiento_eliminar(request, pk):
     """Eliminar un reabastecimiento."""
