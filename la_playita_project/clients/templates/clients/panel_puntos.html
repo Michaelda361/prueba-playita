@@ -16,7 +16,8 @@
 
     <div class="row mb-4">
         <div class="col-md-4">
-            <div class="card text-center shadow-sm" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+            <div class="card text-center shadow-sm"
+                style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
                 <div class="card-body">
                     <h5 class="card-title">Puntos Totales</h5>
                     <h2 class="mb-0">{{ puntos_totales }}</h2>
@@ -50,44 +51,44 @@
                 </div>
                 <div class="card-body">
                     {% if transacciones %}
-                        <div class="table-responsive">
-                            <table class="table table-striped table-hover">
-                                <thead class="table-light">
-                                    <tr>
-                                        <th>Tipo</th>
-                                        <th>Descripción</th>
-                                        <th>Puntos</th>
-                                        <th>Fecha</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {% for trans in transacciones %}
-                                        <tr>
-                                            <td>
-                                                {% if trans.tipo == "ganancia" %}
-                                                    <span class="badge bg-success">Ganancia</span>
-                                                {% elif trans.tipo == "canje" %}
-                                                    <span class="badge bg-warning text-dark">Canje</span>
-                                                {% else %}
-                                                    <span class="badge bg-secondary">Ajuste</span>
-                                                {% endif %}
-                                            </td>
-                                            <td>{{ trans.descripcion }}</td>
-                                            <td>
-                                                {% if trans.puntos >= 0 %}
-                                                    <span class="text-success">+{{ trans.puntos }}</span>
-                                                {% else %}
-                                                    <span class="text-danger">{{ trans.puntos }}</span>
-                                                {% endif %}
-                                            </td>
-                                            <td>{{ trans.fecha_transaccion|date:"d/m/Y H:i" }}</td>
-                                        </tr>
-                                    {% endfor %}
-                                </tbody>
-                            </table>
-                        </div>
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Tipo</th>
+                                    <th>Descripción</th>
+                                    <th>Puntos</th>
+                                    <th>Fecha</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for trans in transacciones %}
+                                <tr>
+                                    <td>
+                                        {% if trans.tipo == "ganancia" %}
+                                        <span class="badge bg-success">Ganancia</span>
+                                        {% elif trans.tipo == "canje" %}
+                                        <span class="badge bg-warning text-dark">Canje</span>
+                                        {% else %}
+                                        <span class="badge bg-secondary">Ajuste</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ trans.descripcion }}</td>
+                                    <td>
+                                        {% if trans.puntos >= 0 %}
+                                        <span class="text-success">+{{ trans.puntos }}</span>
+                                        {% else %}
+                                        <span class="text-danger">{{ trans.puntos }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ trans.fecha_transaccion|date:"d/m/Y H:i" }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
                     {% else %}
-                        <p class="text-muted text-center">No hay transacciones registradas</p>
+                    <p class="text-muted text-center">No hay transacciones registradas</p>
                     {% endif %}
                 </div>
             </div>
@@ -103,40 +104,40 @@
                 </div>
                 <div class="card-body">
                     {% if productos %}
-                        <div class="table-responsive">
-                            <table class="table table-striped table-hover align-middle">
-                                <thead class="table-light">
-                                    <tr>
-                                        <th>Producto</th>
-                                        <th>Puntos requeridos</th>
-                                        <th>Stock</th>
-                                        <th>Acción</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {% for producto in productos %}
-                                    <tr>
-                                        <td>{{ producto.nombre }}</td>
-                                        <td>{{ producto.puntos_requeridos }}</td>
-                                        <td>{{ producto.stock_disponible }}</td>
-                                        <td>
-                                            {% if cliente.puntos_totales >= producto.puntos_requeridos and producto.stock_disponible > 0 %}
-                                                <a href="{% url 'clients:confirmar_canje' producto.id %}" class="btn btn-success btn-sm">
-                                                    Canjear
-                                                </a>
-                                            {% elif producto.stock_disponible == 0 %}
-                                                <span class="badge bg-secondary">Sin stock</span>
-                                            {% else %}
-                                                <button class="btn btn-secondary btn-sm" disabled>Puntos insuficientes</button>
-                                            {% endif %}
-                                        </td>
-                                    </tr>
-                                    {% endfor %}
-                                </tbody>
-                            </table>
-                        </div>
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Producto</th>
+                                    <th>Puntos requeridos</th>
+                                    <th>Stock</th>
+                                    <th>Acción</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for producto in productos %}
+                                <tr>
+                                    <td>{{ producto.nombre }}</td>
+                                    <td>{{ producto.puntos_requeridos }}</td>
+                                    <td>{{ producto.stock_disponible }}</td>
+                                    <td>
+                                        {% if cliente.puntos_totales >= producto.puntos_requeridos and
+                                        producto.stock_disponible > 0 %}
+                                        <a href="{% url 'clients:confirmar_canje' producto.id %}?cliente_id={{ cliente.id }}"
+                                            class="btn btn-success btn-sm">Canjear</a>
+                                        {% elif producto.stock_disponible == 0 %}
+                                        <span class="badge bg-secondary">Sin stock</span>
+                                        {% else %}
+                                        <button class="btn btn-secondary btn-sm" disabled>Puntos insuficientes</button>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
                     {% else %}
-                        <p class="text-center text-muted mb-0">No hay productos canjeables disponibles en este momento.</p>
+                    <p class="text-center text-muted mb-0">No hay productos canjeables disponibles en este momento.</p>
                     {% endif %}
                 </div>
             </div>

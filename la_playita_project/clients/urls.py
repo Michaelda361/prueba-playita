@@ -31,6 +31,10 @@ urlpatterns = [
     # Administración de canjes (solo admin)
     path('admin/marcar-canje-entregado/<int:canje_id>/', views.marcar_canje_entregado, name='marcar_canje_entregado'),
 
+    # Detalle de canje y envío de correo
+    path('canje/<int:canje_id>/', views.detalle_canje, name='detalle_canje'),
+    path('canje/<int:canje_id>/enviar-correo/', views.enviar_correo_canje, name='enviar_correo_canje'),
+
     # Opcional - Vistas adicionales de flujo tradicional web (sin AJAX)
     # Confirma y procesa canje por web (si usas el flujo HTML tradicional)
     path('confirmar-canje/<int:producto_id>/', views.canjearproducto_web, name='confirmar_canje'),

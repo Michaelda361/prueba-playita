@@ -1,0 +1,50 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Confirmar Canje{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card border-0 shadow-lg">
+                <div class="card-header bg-primary text-white text-center py-3">
+                    <h4 class="mb-0">Confirmar Canje</h4>
+                </div>
+                <div class="card-body p-4">
+                    <div class="text-center mb-4">
+                        <img src="{% static 'img/gift-box.png' %}" alt="Regalo" style="width: 80px; opacity: 0.8;"
+                            class="mb-3">
+                        <h5 class="text-muted">Estás a punto de canjear:</h5>
+                        <h2 class="fw-bold text-primary">{{ producto.nombre }}</h2>
+                        <p class="text-muted">{{ producto.descripcion }}</p>
+                    </div>
+
+                    <div class="alert alert-light border text-center mb-4">
+                        <div class="row">
+                            <div class="col-6 border-end">
+                                <small class="text-muted d-block">Puntos Requeridos</small>
+                                <span class="h4 fw-bold text-danger">{{ puntos_requeridos }}</span>
+                            </div>
+                            <div class="col-6">
+                                <small class="text-muted d-block">Tus Puntos</small>
+                                </a>
+                            </div>
+                            </form>
+                            {% else %}
+                            <div class="alert alert-warning text-center">
+                                <i class="fas fa-exclamation-triangle me-2"></i>
+                                No tienes suficientes puntos. Te faltan <strong>{{ diferencia }}</strong> puntos.
+                            </div>
+                            <div class="d-grid">
+                                <a href="{% url 'clients:productos_canjebles' %}" class="btn btn-secondary">
+                                    Volver al catálogo
+                                </a>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endblock %}

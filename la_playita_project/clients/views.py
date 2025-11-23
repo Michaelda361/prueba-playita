@@ -156,7 +156,35 @@ def canjear_producto(request, producto_id):
 @transaction.atomic
 def canjearproducto_web(request, producto_id):
     producto = get_object_or_404(ProductoCanjeble, pk=producto_id)
-    cliente = Cliente.objects.get(correo=request.user.email)
+    
+    # Lógica para determinar el cliente objetivo
+    target_cliente_id = request.GET.get('cliente_id') or request.POST.get('cliente_id')
+    
+    if target_cliente_id and (request.user.is_staff or request.user.is_superuser):
+        # Si es admin y especifica un cliente, usar ese cliente
+        cliente = get_object_or_404(Cliente, pk=target_cliente_id)
+    else:
+        try:
+            cliente = Cliente.objects.get(correo=request.user.email)
+        except Cliente.DoesNotExist:
+            # Auto-crear cliente para pruebas (Admin/Dev)
+            cliente = Cliente.objects.create(
+                nombres=request.user.first_name or request.user.username,
+                apellidos=request.user.last_name or 'Admin',
+                correo=request.user.email,
+                documento=f'ADMIN-{request.user.id}',
+                telefono='0000000000',
+                puntos_totales=Decimal('10000.00')
+            )
+            # Registrar los puntos iniciales en el historial para mantener consistencia
+            PuntosFidelizacion.objects.create(
+                cliente=cliente,
+                tipo=PuntosFidelizacion.TIPO_AJUSTE,
+                puntos=Decimal('10000.00'),
+                descripcion='Bono de Bienvenida (Cliente de Prueba)'
+            )
+            messages.success(request, "Perfil de cliente de prueba creado automáticamente con 10,000 puntos.")
+            
     if cliente.id == 1:
         messages.error(request, "Los consumidores finales no pueden canjear puntos.")
         return redirect('clients:mi_panel_puntos')
@@ -201,10 +229,69 @@ def canjearproducto_web(request, producto_id):
                 canje=canje
             )
             messages.success(request, f'¡Canje realizado correctamente!')
-            return redirect('clients:canjes_cliente', cliente_id=cliente.id)
+            return redirect('clients:detalle_canje', canje_id=canje.id)
         except Exception as e:
             messages.error(request, f'Error en el canje: {str(e)}')
             return redirect(request.path)
+
+@login_required
+def detalle_canje(request, canje_id):
+    canje = get_object_or_404(CanjeProducto, pk=canje_id)
+    # Seguridad: Solo el dueño del canje o un admin puede verlo
+    if not request.user.is_superuser:
+        try:
+            cliente = Cliente.objects.get(correo=request.user.email)
+            if canje.cliente_id != cliente.id:
+                messages.error(request, "No tienes permiso para ver este canje.")
+                return redirect('clients:mi_panel_puntos')
+        except Cliente.DoesNotExist:
+             return redirect('clients:mi_panel_puntos')
+
+    return render(request, 'clients/detalle_canje.html', {'canje': canje})
+
+@login_required
+@require_POST
+def enviar_correo_canje(request, canje_id):
+    try:
+        canje = get_object_or_404(CanjeProducto, pk=canje_id)
+        cliente = canje.cliente
+        
+        # Verificar email del cliente
+        if not cliente.correo:
+            return JsonResponse({'success': False, 'error': 'El cliente no tiene correo registrado.'})
+
+        # Construir mensaje
+        asunto = f"Confirmación de Canje #{canje.id} - La Playita"
+        mensaje = f"""
+        Hola {cliente.nombres},
+
+        Tu canje ha sido procesado exitosamente.
+
+        Detalles del Canje:
+        -------------------
+        Producto: {canje.producto.nombre}
+        Puntos Gastados: {canje.puntos_gastados}
+        Fecha: {canje.fecha_canje.strftime('%d/%m/%Y')}
+        Código de Canje: #{canje.id}
+
+        Gracias por ser parte de nuestro programa de fidelización.
+
+        Atentamente,
+        El equipo de La Playita
+        """
+        
+        from django.core.mail import send_mail
+        send_mail(
+            asunto,
+            mensaje,
+            'noreply@laplayita.com',  # Remitente (configurar en settings)
+            [cliente.correo],
+            fail_silently=False,
+        )
+        
+        return JsonResponse({'success': True, 'email': cliente.correo})
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)})
 
 # ==================== HISTORIAL DE CANJES ====================
 

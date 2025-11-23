@@ -1,0 +1,108 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Detalle de Canje #{{ canje.id }}{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8 col-lg-6">
+            <div class="card border-0 shadow-lg overflow-hidden">
+                <div class="card-header bg-success text-white text-center py-4">
+                    <div class="mb-3">
+                        <i class="fas fa-check-circle fa-4x"></i>
+                    </div>
+                    <h3 class="mb-0">¡Canje Exitoso!</h3>
+                    <p class="mb-0 opacity-75">Tu solicitud ha sido procesada correctamente</p>
+                </div>
+                <div class="card-body p-4 p-md-5">
+
+                    <div class="text-center mb-4">
+                        <h5 class="text-muted mb-1">Producto Canjeado</h5>
+                        <h2 class="fw-bold text-primary">{{ canje.producto.nombre }}</h2>
+                    </div>
+
+                    <div class="row g-3 mb-4">
+                        <div class="col-6">
+                            <div class="p-3 bg-light rounded text-center h-100">
+                                <small class="text-muted d-block mb-1">Puntos Gastados</small>
+                                <span class="h4 fw-bold text-warning">{{ canje.puntos_gastados }}</span>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="p-3 bg-light rounded text-center h-100">
+                                <small class="text-muted d-block mb-1">Fecha</small>
+                                <span class="h5 fw-bold text-dark">{{ canje.fecha_canje|date:"d/m/Y" }}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="border-top pt-4">
+                        <h6 class="text-muted mb-3">Detalles de la Transacción</h6>
+                        <ul class="list-group list-group-flush mb-4">
+                            <li class="list-group-item d-flex justify-content-between px-0">
+                                <span>Código de Canje</span>
+                                <span class="font-monospace">#{{ canje.id }}</span>
+                            </li>
+                            <li class="list-group-item d-flex justify-content-between px-0">
+                                <span>Estado</span>
+                                <span class="badge bg-success">Completado</span>
+                            </li>
+                            <li class="list-group-item d-flex justify-content-between px-0">
+                                <span>Cliente</span>
+                                <span>{{ canje.cliente.nombres }} {{ canje.cliente.apellidos }}</span>
+                            </li>
+                        </ul>
+                    </div>
+
+                    <div class="d-grid gap-2">
+                        <button id="btnEnviarCorreo" class="btn btn-primary btn-lg">
+                            <i class="fas fa-envelope me-2"></i> Enviar detalle por correo
+                        </button>
+                        <a href="{% url 'clients:mi_panel_puntos' %}" class="btn btn-outline-secondary">
+                            Volver a mi panel
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.getElementById('btnEnviarCorreo').addEventListener('click', function () {
+        const btn = this;
+        const originalText = btn.innerHTML;
+
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Enviando...';
+
+        fetch('{% url "clients:enviar_correo_canje" canje.id %}', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+                'Content-Type': 'application/json'
+            }
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('Correo enviado exitosamente a ' + data.email);
+                    btn.innerHTML = '<i class="fas fa-check me-2"></i> ¡Enviado!';
+                    btn.classList.remove('btn-primary');
+                    btn.classList.add('btn-success');
+                } else {
+                    alert('Error al enviar correo: ' + data.error);
+                    btn.disabled = false;
+                    btn.innerHTML = originalText;
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Ocurrió un error al intentar enviar el correo.');
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            });
+    });
+</script>
+{% endblock %}
