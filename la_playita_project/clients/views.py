@@ -11,18 +11,23 @@ from django.contrib import messages
 from decimal import Decimal
 import json
 
+
 # ==================== ADMIN & CLIENTE CRUD ====================
+
 
 @login_required
 @check_user_role(allowed_roles=['Administrador'])
 def cliente_list(request):
+    """Lista todos los clientes del sistema (solo Administrador)."""
     clientes = Cliente.objects.all().order_by('nombres')
     return render(request, 'clients/cliente_list.html', {'clientes': clientes})
+
 
 @login_required
 @require_POST
 @check_user_role(allowed_roles=['Administrador', 'Vendedor'])
 def cliente_create_ajax(request):
+    """Crea un cliente mediante AJAX desde el POS."""
     try:
         data = json.loads(request.body)
         if Cliente.objects.filter(documento=data.get('documento')).exists():
@@ -43,10 +48,13 @@ def cliente_create_ajax(request):
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=400)
 
+
 # ==================== PANEL Y PUNTOS ====================
+
 
 @login_required
 def panel_puntos(request, cliente_id):
+    """Panel de puntos para un cliente específico (uso administrativo)."""
     cliente = get_object_or_404(Cliente, pk=cliente_id)
     transacciones = PuntosFidelizacion.objects.filter(cliente_id=cliente_id).order_by('-fecha_transaccion')[:20]
     productos = ProductoCanjeble.objects.filter(activo=True, stock_disponible__gt=0).order_by('puntos_requeridos')
@@ -54,12 +62,14 @@ def panel_puntos(request, cliente_id):
         'cliente': cliente,
         'transacciones': transacciones,
         'puntos_totales': cliente.puntos_totales,
-        'productos': productos,  # Para mostrar catálogo y botón de canje
+        'productos': productos,
     }
     return render(request, 'clients/panel_puntos.html', context)
 
+
 @login_required
 def historial_puntos(request, cliente_id):
+    """Historial completo de transacciones de puntos de un cliente."""
     cliente = get_object_or_404(Cliente, pk=cliente_id)
     transacciones = PuntosFidelizacion.objects.filter(cliente_id=cliente_id).order_by('-fecha_transaccion')
     context = {
@@ -68,16 +78,27 @@ def historial_puntos(request, cliente_id):
     }
     return render(request, 'clients/historial_puntos.html', context)
 
+
 @login_required
 def mi_panel_puntos(request):
-    cliente = Cliente.objects.filter(correo=request.user.email).first()
-    if not cliente:
+    """
+    Muestra el panel de puntos del usuario logueado.
+    Si el usuario logueado tiene un cliente asociado, muestra SU información.
+    Si es ADMIN sin cliente asociado, redirige a la lista de clientes.
+    """
+    try:
+        cliente = Cliente.objects.get(correo=request.user.email)
+    except Cliente.DoesNotExist:
+        if request.user.is_staff or request.user.is_superuser:
+            return redirect('clients:cliente_list')
         return render(request, 'clients/sin_cliente.html', {
-            'mensaje': 'No tienes perfil de cliente asociado'
+            'mensaje': 'No tienes un perfil de cliente asociado en el sistema.'
         })
+    
     transacciones = PuntosFidelizacion.objects.filter(cliente_id=cliente.id).order_by('-fecha_transaccion')[:10]
     canjes = CanjeProducto.objects.filter(cliente_id=cliente.id).order_by('-fecha_canje')[:5]
     productos = ProductoCanjeble.objects.filter(activo=True, stock_disponible__gt=0).order_by('puntos_requeridos')
+    
     context = {
         'cliente': cliente,
         'transacciones': transacciones,
@@ -87,10 +108,13 @@ def mi_panel_puntos(request):
     }
     return render(request, 'clients/mi_panel_puntos.html', context)
 
+
 # ==================== CATÁLOGO DE PRODUCTOS ====================
+
 
 @login_required
 def productos_canjebles(request):
+    """Catálogo de productos canjeables disponibles."""
     productos = ProductoCanjeble.objects.filter(activo=True, stock_disponible__gt=0).order_by('puntos_requeridos')
     try:
         cliente = Cliente.objects.get(correo=request.user.email)
@@ -102,37 +126,155 @@ def productos_canjebles(request):
     }
     return render(request, 'clients/productos_canjebles.html', context)
 
+
+# ==================== ADMINISTRACIÓN DE PRODUCTOS CANJEABLES ====================
+
+
+@login_required
+@check_user_role(allowed_roles=['Administrador'])
+def administrar_productos_canjebles(request):
+    """Lista y administra todos los productos canjeables."""
+    productos = ProductoCanjeble.objects.all().order_by('-activo', 'puntos_requeridos')
+    context = {
+        'productos': productos,
+    }
+    return render(request, 'clients/admin_productos_canjebles.html', context)
+
+
+@login_required
+@check_user_role(allowed_roles=['Administrador'])
+@require_http_methods(["GET", "POST"])
+def crear_producto_canjeble(request):
+    """Crea un nuevo producto canjeable."""
+    if request.method == "POST":
+        try:
+            ProductoCanjeble.objects.create(
+                nombre=request.POST.get('nombre'),
+                descripcion=request.POST.get('descripcion'),
+                puntos_requeridos=Decimal(request.POST.get('puntos_requeridos')),
+                stock_disponible=int(request.POST.get('stock_disponible')),
+                activo=request.POST.get('activo') == 'on',
+                imagen_url=request.POST.get('imagen_url', '')
+            )
+            messages.success(request, 'Producto canjeable creado exitosamente.')
+            return redirect('clients:admin_productos_canjebles')
+        except Exception as e:
+            messages.error(request, f'Error al crear producto: {str(e)}')
+    
+    return render(request, 'clients/crear_producto_canjeble.html')
+
+
+@login_required
+@check_user_role(allowed_roles=['Administrador'])
+@require_http_methods(["GET", "POST"])
+def editar_producto_canjeble(request, producto_id):
+    """Edita un producto canjeable existente."""
+    producto = get_object_or_404(ProductoCanjeble, pk=producto_id)
+    
+    if request.method == "POST":
+        try:
+            producto.nombre = request.POST.get('nombre')
+            producto.descripcion = request.POST.get('descripcion')
+            producto.puntos_requeridos = Decimal(request.POST.get('puntos_requeridos'))
+            producto.stock_disponible = int(request.POST.get('stock_disponible'))
+            producto.activo = request.POST.get('activo') == 'on'
+            producto.imagen_url = request.POST.get('imagen_url', '')
+            producto.save()
+            
+            messages.success(request, 'Producto actualizado exitosamente.')
+            return redirect('clients:admin_productos_canjebles')
+        except Exception as e:
+            messages.error(request, f'Error al actualizar producto: {str(e)}')
+    
+    context = {
+        'producto': producto,
+    }
+    return render(request, 'clients/editar_producto_canjeble.html', context)
+
+
+@login_required
+@check_user_role(allowed_roles=['Administrador'])
+@require_POST
+def eliminar_producto_canjeble(request, producto_id):
+    """Desactiva un producto canjeable (soft delete)."""
+    try:
+        producto = get_object_or_404(ProductoCanjeble, pk=producto_id)
+        producto.activo = False
+        producto.save()
+        messages.success(request, f'Producto "{producto.nombre}" desactivado exitosamente.')
+    except Exception as e:
+        messages.error(request, f'Error al eliminar producto: {str(e)}')
+    
+    return redirect('clients:admin_productos_canjebles')
+
+
 # ==================== CANJEAR PRODUCTO: AJAX ====================
+
 
 @login_required
 @require_POST
 def canjear_producto(request, producto_id):
+    """
+    Procesa el canje de un producto.
+    Soporta tanto solicitudes AJAX (JSON) como formularios estándar (POST).
+    """
+    is_ajax = request.headers.get('x-requested-with') == 'XMLHttpRequest' or 'application/json' in request.content_type
+    
     try:
-        data = json.loads(request.body)
-        cliente_id = data.get('cliente_id')
+        cliente_id = None
+        
+        # Intentar obtener datos según el tipo de solicitud
+        if is_ajax:
+            try:
+                data = json.loads(request.body)
+                cliente_id = data.get('cliente_id')
+            except json.JSONDecodeError:
+                pass
+        
+        # Si no es AJAX o falló la lectura del JSON, intentar con POST estándar
+        if not cliente_id:
+            cliente_id = request.POST.get('cliente_id')
+            
+        if not cliente_id:
+            raise ValueError("ID de cliente no proporcionado")
+
         cliente = get_object_or_404(Cliente, pk=cliente_id)
         producto = get_object_or_404(ProductoCanjeble, pk=producto_id)
+        
         if producto.stock_disponible <= 0:
-            return JsonResponse({
-                'success': False,
-                'error': 'Producto sin stock disponible'
-            }, status=400)
+            error_msg = 'Producto sin stock disponible'
+            if is_ajax:
+                return JsonResponse({'success': False, 'error': error_msg}, status=400)
+            else:
+                messages.error(request, error_msg)
+                return redirect('clients:panel_puntos', cliente_id=cliente_id)
+        
         if cliente.puntos_totales < producto.puntos_requeridos:
-            return JsonResponse({
-                'success': False,
-                'error': f'Puntos insuficientes. Requiere {producto.puntos_requeridos} pts, tienes {cliente.puntos_totales} pts'
-            }, status=400)
+            error_msg = f'Puntos insuficientes. Requiere {producto.puntos_requeridos} pts, tienes {cliente.puntos_totales} pts'
+            if is_ajax:
+                return JsonResponse({'success': False, 'error': error_msg}, status=400)
+            else:
+                messages.error(request, error_msg)
+                return redirect('clients:panel_puntos', cliente_id=cliente_id)
+        
         with transaction.atomic():
+            # Crear el canje
             canje = CanjeProducto.objects.create(
                 cliente_id=cliente.id,
                 producto_id=producto.id,
                 puntos_gastados=producto.puntos_requeridos,
                 estado=CanjeProducto.ESTADO_PENDIENTE
             )
+            
+            # Descontar puntos del cliente
             cliente.puntos_totales -= producto.puntos_requeridos
             cliente.save()
+            
+            # Reducir stock del producto
             producto.stock_disponible -= 1
             producto.save()
+            
+            # Registrar transacción de puntos
             PuntosFidelizacion.objects.create(
                 cliente_id=cliente.id,
                 tipo=PuntosFidelizacion.TIPO_CANJE,
@@ -140,34 +282,59 @@ def canjear_producto(request, producto_id):
                 descripcion=f'Canje de {producto.nombre} (Canje #{canje.id})',
                 canje_id=canje.id
             )
-        return JsonResponse({
-            'success': True,
-            'mensaje': f'Canje realizado exitosamente. Canje #{canje.id}',
-            'canje_id': canje.id,
-            'puntos_restantes': float(cliente.puntos_totales)
-        })
+        
+        # Respuesta exitosa
+        if is_ajax:
+            return JsonResponse({
+                'success': True,
+                'mensaje': f'Canje realizado exitosamente. Canje #{canje.id}',
+                'canje_id': canje.id,
+                'puntos_restantes': float(cliente.puntos_totales),
+                'redirect_url': reverse('clients:detalle_canje', args=[canje.id])
+            })
+        else:
+            messages.success(request, '¡Canje realizado exitosamente!')
+            return redirect('clients:detalle_canje', canje_id=canje.id)
+
     except Exception as e:
-        return JsonResponse({'success': False, 'error': str(e)}, status=400)
+        if is_ajax:
+            return JsonResponse({'success': False, 'error': str(e)}, status=400)
+        else:
+            messages.error(request, f'Error al procesar el canje: {str(e)}')
+            # Intentar redirigir al panel si tenemos cliente_id, sino al listado
+            if 'cliente_id' in locals() and cliente_id:
+                return redirect('clients:panel_puntos', cliente_id=cliente_id)
+            return redirect('clients:cliente_list')
+
 
 # ==================== CANJE TRADICIONAL (HTML CON CONFIRMACIÓN) ====================
 
+
 @login_required
 @require_http_methods(["GET", "POST"])
-@transaction.atomic
 def canjearproducto_web(request, producto_id):
+    """
+    Vista para canjear productos con confirmación HTML.
+    
+    GET: Muestra formulario de confirmación
+    POST: Procesa el canje y redirige al detalle
+    
+    Parámetros:
+    - cliente_id (GET/POST): ID del cliente a quien se le descuentan los puntos
+    
+    Si NO se proporciona cliente_id, busca el cliente del usuario logueado.
+    """
     producto = get_object_or_404(ProductoCanjeble, pk=producto_id)
     
-    # Lógica para determinar el cliente objetivo
     target_cliente_id = request.GET.get('cliente_id') or request.POST.get('cliente_id')
     
-    if target_cliente_id and (request.user.is_staff or request.user.is_superuser):
-        # Si es admin y especifica un cliente, usar ese cliente
+    if target_cliente_id:
         cliente = get_object_or_404(Cliente, pk=target_cliente_id)
     else:
         try:
             cliente = Cliente.objects.get(correo=request.user.email)
         except Cliente.DoesNotExist:
-            # Auto-crear cliente para pruebas (Admin/Dev)
+            # Crear cliente de prueba para admin si no existe
             cliente = Cliente.objects.create(
                 nombres=request.user.first_name or request.user.username,
                 apellidos=request.user.last_name or 'Admin',
@@ -176,7 +343,6 @@ def canjearproducto_web(request, producto_id):
                 telefono='0000000000',
                 puntos_totales=Decimal('10000.00')
             )
-            # Registrar los puntos iniciales en el historial para mantener consistencia
             PuntosFidelizacion.objects.create(
                 cliente=cliente,
                 tipo=PuntosFidelizacion.TIPO_AJUSTE,
@@ -184,10 +350,14 @@ def canjearproducto_web(request, producto_id):
                 descripcion='Bono de Bienvenida (Cliente de Prueba)'
             )
             messages.success(request, "Perfil de cliente de prueba creado automáticamente con 10,000 puntos.")
-            
+    
+    # Validar que no sea el consumidor final (ID 1)
     if cliente.id == 1:
         messages.error(request, "Los consumidores finales no pueden canjear puntos.")
+        if target_cliente_id:
+            return redirect('clients:panel_puntos', cliente_id=target_cliente_id)
         return redirect('clients:mi_panel_puntos')
+    
     if request.method == "GET":
         puntos_disponibles = cliente.puntos_totales
         puntos_requeridos = producto.puntos_requeridos
@@ -201,90 +371,161 @@ def canjearproducto_web(request, producto_id):
             'diferencia': puntos_requeridos - puntos_disponibles if not puede_canjear else 0
         }
         return render(request, 'clients/confirmar_canje.html', context)
+    
     elif request.method == "POST":
         puntos_disponibles = cliente.puntos_totales
         puntos_requeridos = producto.puntos_requeridos
+        
+        # Validaciones
         if puntos_disponibles < puntos_requeridos:
             messages.error(request, f'Necesitas {puntos_requeridos} pts y tienes {puntos_disponibles}.')
             return redirect(request.path)
+        
         if producto.stock_disponible <= 0:
             messages.error(request, 'Producto sin stock.')
             return redirect(request.path)
+        
         try:
-            cliente.puntos_totales -= puntos_requeridos
-            cliente.save()
-            producto.stock_disponible -= 1
-            producto.save()
-            canje = CanjeProducto.objects.create(
-                cliente=cliente,
-                producto=producto,
-                puntos_gastados=puntos_requeridos,
-                estado=CanjeProducto.ESTADO_COMPLETADO
-            )
-            PuntosFidelizacion.objects.create(
-                cliente=cliente,
-                tipo=PuntosFidelizacion.TIPO_CANJE,
-                puntos=-puntos_requeridos,
-                descripcion=f'Canje de {producto.nombre} (Web)',
-                canje=canje
-            )
+            # ✅ Transacción atómica para garantizar consistencia
+            with transaction.atomic():
+                # 1. Descontar puntos del cliente
+                cliente.puntos_totales -= puntos_requeridos
+                cliente.save()
+                
+                # 2. Reducir stock del producto
+                producto.stock_disponible -= 1
+                producto.save()
+                
+                # 3. Crear el canje
+                canje = CanjeProducto.objects.create(
+                    cliente=cliente,
+                    producto=producto,
+                    puntos_gastados=puntos_requeridos,
+                    estado=CanjeProducto.ESTADO_COMPLETADO
+                )
+                
+                # 4. Registrar transacción de puntos
+                PuntosFidelizacion.objects.create(
+                    cliente=cliente,
+                    tipo=PuntosFidelizacion.TIPO_CANJE,
+                    puntos=-puntos_requeridos,
+                    descripcion=f'Canje de {producto.nombre} (Web)',
+                    canje=canje
+                )
+            
             messages.success(request, f'¡Canje realizado correctamente!')
+            # ✅ SIEMPRE redirigir al detalle del canje FUERA de la transacción
             return redirect('clients:detalle_canje', canje_id=canje.id)
         except Exception as e:
             messages.error(request, f'Error en el canje: {str(e)}')
             return redirect(request.path)
 
+
+# ==================== ADMINISTRACIÓN DE CANJES ====================
+
+
+@login_required
+@check_user_role(allowed_roles=['Administrador'])
+@require_POST
+def marcar_canje_entregado(request, canje_id):
+    """Marca un canje como entregado."""
+    try:
+        canje = get_object_or_404(CanjeProducto, pk=canje_id)
+        canje.estado = CanjeProducto.ESTADO_COMPLETADO
+        canje.save()
+        messages.success(request, f'Canje #{canje.id} marcado como entregado.')
+    except Exception as e:
+        messages.error(request, f'Error al actualizar canje: {str(e)}')
+    
+    # Redirigir a la página anterior o al detalle del canje
+    referer = request.META.get('HTTP_REFERER')
+    if referer:
+        return redirect(referer)
+    return redirect('clients:detalle_canje', canje_id=canje_id)
+
+
+# ==================== DETALLE Y CONFIRMACIÓN DE CANJE ====================
+
+
 @login_required
 def detalle_canje(request, canje_id):
+    """
+    Muestra los detalles de un canje específico con opciones para:
+    - Enviar correo de confirmación
+    - Volver al panel de puntos
+    """
     canje = get_object_or_404(CanjeProducto, pk=canje_id)
-    # Seguridad: Solo el dueño del canje o un admin puede verlo
-    if not request.user.is_superuser:
+    
+    # Verificar permisos
+    puede_ver = False
+    
+    # 1. Superusuarios y Staff de Django
+    if request.user.is_superuser or request.user.is_staff:
+        puede_ver = True
+    
+    # 2. Usuarios con roles administrativos (Administrador o Vendedor)
+    # Usamos el campo 'rol' del modelo Usuario en lugar de grupos de Django
+    elif hasattr(request.user, 'rol') and request.user.rol and request.user.rol.nombre in ['Administrador', 'Vendedor']:
+        puede_ver = True
+        
+    # 3. Cliente dueño del canje
+    else:
         try:
             cliente = Cliente.objects.get(correo=request.user.email)
-            if canje.cliente_id != cliente.id:
-                messages.error(request, "No tienes permiso para ver este canje.")
-                return redirect('clients:mi_panel_puntos')
+            if canje.cliente_id == cliente.id:
+                puede_ver = True
         except Cliente.DoesNotExist:
-             return redirect('clients:mi_panel_puntos')
+            pass
+    
+    if not puede_ver:
+        messages.error(request, "No tienes permiso para ver este canje.")
+        return redirect('clients:mi_panel_puntos')
+    
+    context = {
+        'canje': canje,
+        'puede_enviar_correo': bool(canje.cliente.correo),
+    }
+    return render(request, 'clients/detalle_canje.html', context)
 
-    return render(request, 'clients/detalle_canje.html', {'canje': canje})
 
 @login_required
 @require_POST
 def enviar_correo_canje(request, canje_id):
+    """Envía un correo de confirmación del canje al cliente."""
     try:
         canje = get_object_or_404(CanjeProducto, pk=canje_id)
         cliente = canje.cliente
         
-        # Verificar email del cliente
         if not cliente.correo:
-            return JsonResponse({'success': False, 'error': 'El cliente no tiene correo registrado.'})
-
-        # Construir mensaje
+            return JsonResponse({
+                'success': False,
+                'error': 'El cliente no tiene correo registrado.'
+            })
+        
         asunto = f"Confirmación de Canje #{canje.id} - La Playita"
         mensaje = f"""
-        Hola {cliente.nombres},
+Hola {cliente.nombres},
 
-        Tu canje ha sido procesado exitosamente.
+Tu canje ha sido procesado exitosamente.
 
-        Detalles del Canje:
-        -------------------
-        Producto: {canje.producto.nombre}
-        Puntos Gastados: {canje.puntos_gastados}
-        Fecha: {canje.fecha_canje.strftime('%d/%m/%Y')}
-        Código de Canje: #{canje.id}
+Detalles del Canje:
+-------------------
+Producto: {canje.producto.nombre}
+Puntos Gastados: {canje.puntos_gastados}
+Fecha: {canje.fecha_canje.strftime('%d/%m/%Y')}
+Código de Canje: #{canje.id}
 
-        Gracias por ser parte de nuestro programa de fidelización.
+Gracias por ser parte de nuestro programa de fidelización.
 
-        Atentamente,
-        El equipo de La Playita
+Atentamente,
+El equipo de La Playita
         """
         
         from django.core.mail import send_mail
         send_mail(
             asunto,
             mensaje,
-            'noreply@laplayita.com',  # Remitente (configurar en settings)
+            'noreply@laplayita.com',
             [cliente.correo],
             fail_silently=False,
         )
@@ -293,87 +534,77 @@ def enviar_correo_canje(request, canje_id):
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)})
 
+
 # ==================== HISTORIAL DE CANJES ====================
+
 
 @login_required
 def canjes_cliente(request, cliente_id):
+    """Muestra el historial completo de canjes de un cliente."""
     cliente = get_object_or_404(Cliente, pk=cliente_id)
     canjes = CanjeProducto.objects.filter(cliente_id=cliente_id).order_by('-fecha_canje')
+    
     context = {
         'cliente': cliente,
         'canjes': canjes,
     }
     return render(request, 'clients/canjes_cliente.html', context)
 
-# ==================== ADMINISTRACIÓN PRODUCTOS CANJEBLES ====================
 
 @login_required
-@check_user_role(allowed_roles=['Administrador'])
-def administrar_productos_canjebles(request):
-    productos = ProductoCanjeble.objects.all().order_by('-fecha_creacion')
-    return render(request, 'clients/admin_productos_canjebles.html', {'productos': productos})
+def mis_canjes(request):
+    """Muestra el historial de canjes del usuario logueado."""
+    try:
+        cliente = Cliente.objects.get(correo=request.user.email)
+    except Cliente.DoesNotExist:
+        messages.warning(request, "No tienes un perfil de cliente asociado.")
+        return redirect('clients:mi_panel_puntos')
+    
+    canjes = CanjeProducto.objects.filter(cliente_id=cliente.id).order_by('-fecha_canje')
+    
+    context = {
+        'cliente': cliente,
+        'canjes': canjes,
+    }
+    return render(request, 'clients/mis_canjes.html', context)
+
+
+# ==================== BÚSQUEDA DE CLIENTES (AJAX) ====================
+
 
 @login_required
 @require_POST
-@check_user_role(allowed_roles=['Administrador'])
-def crear_producto_canjeble(request):
+@check_user_role(allowed_roles=['Administrador', 'Vendedor'])
+def buscar_cliente_ajax(request):
+    """Busca clientes por documento o nombre (para el POS)."""
     try:
         data = json.loads(request.body)
-        producto = ProductoCanjeble.objects.create(
-            nombre=data.get('nombre'),
-            descripcion=data.get('descripcion', ''),
-            puntos_requeridos=Decimal(data.get('puntos_requeridos', 0)),
-            stock_disponible=int(data.get('stock_disponible', 0)),
-            activo=data.get('activo', True)
+        query = data.get('query', '').strip()
+        
+        if not query:
+            return JsonResponse({'clientes': []})
+        
+        # Buscar por documento o nombre
+        clientes = Cliente.objects.filter(
+            documento__icontains=query
+        ) | Cliente.objects.filter(
+            nombres__icontains=query
+        ) | Cliente.objects.filter(
+            apellidos__icontains=query
         )
-        return JsonResponse({
-            'success': True,
-            'id': producto.id,
-            'nombre': producto.nombre,
-            'puntos_requeridos': float(producto.puntos_requeridos),
-            'stock_disponible': producto.stock_disponible,
-        })
+        
+        clientes = clientes.order_by('nombres')[:10]  # Limitar a 10 resultados
+        
+        clientes_data = [{
+            'id': c.id,
+            'nombres': c.nombres,
+            'apellidos': c.apellidos,
+            'documento': c.documento,
+            'telefono': c.telefono,
+            'correo': c.correo,
+            'puntos_totales': float(c.puntos_totales),
+        } for c in clientes]
+        
+        return JsonResponse({'clientes': clientes_data})
     except Exception as e:
-        return JsonResponse({'success': False, 'error': str(e)}, status=400)
-
-@login_required
-@require_POST
-@check_user_role(allowed_roles=['Administrador'])
-def editar_producto_canjeble(request, producto_id):
-    try:
-        data = json.loads(request.body)
-        producto = get_object_or_404(ProductoCanjeble, pk=producto_id)
-        producto.nombre = data.get('nombre', producto.nombre)
-        producto.descripcion = data.get('descripcion', producto.descripcion)
-        producto.puntos_requeridos = Decimal(data.get('puntos_requeridos', producto.puntos_requeridos))
-        producto.stock_disponible = int(data.get('stock_disponible', producto.stock_disponible))
-        producto.activo = data.get('activo', producto.activo)
-        producto.save()
-        return JsonResponse({'success': True, 'mensaje': 'Producto actualizado correctamente'})
-    except Exception as e:
-        return JsonResponse({'success': False, 'error': str(e)}, status=400)
-
-@login_required
-@require_POST
-@check_user_role(allowed_roles=['Administrador'])
-def eliminar_producto_canjeble(request, producto_id):
-    try:
-        producto = get_object_or_404(ProductoCanjeble, pk=producto_id)
-        producto_nombre = producto.nombre
-        producto.delete()
-        return JsonResponse({'success': True, 'mensaje': f'Producto \"{producto_nombre}\" eliminado correctamente'})
-    except Exception as e:
-        return JsonResponse({'success': False, 'error': str(e)}, status=400)
-
-@login_required
-@require_POST
-@check_user_role(allowed_roles=['Administrador'])
-def marcar_canje_entregado(request, canje_id):
-    try:
-        canje = get_object_or_404(CanjeProducto, pk=canje_id)
-        canje.estado = CanjeProducto.ESTADO_COMPLETADO
-        canje.fecha_entrega = timezone.now()
-        canje.save()
-        return JsonResponse({'success': True, 'mensaje': f'Canje #{canje_id} marcado como entregado'})
-    except Exception as e:
-        return JsonResponse({'success': False, 'error': str(e)}, status=400)
+        return JsonResponse({'error': str(e)}, status=400)

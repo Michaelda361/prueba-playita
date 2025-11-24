@@ -1,54 +1,192 @@
 {% extends "core/base.html" %}
 {% load static %}
 
-{% block title %}Productos Canjeables{% endblock %}
+{% block title %}Productos Canjeables - La Playita{% endblock %}
+
+{% block extra_css %}
+<style>
+  .producto-card {
+    transition: transform 0.2s, box-shadow 0.2s;
+    cursor: pointer;
+    border: 1px solid #e0e0e0;
+  }
+  .producto-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+    border-color: #667eea;
+  }
+  .puntos-badge {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 10px 15px;
+    border-radius: 25px;
+    font-weight: bold;
+    font-size: 1.2em;
+  }
+  .sin-stock {
+    position: relative;
+    opacity: 0.6;
+  }
+  .sin-stock::after {
+    content: "SIN STOCK";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: #dc3545;
+    color: white;
+    padding: 10px 20px;
+    border-radius: 5px;
+    font-weight: bold;
+    font-size: 0.9em;
+  }
+  .puntos-insuficientes {
+    opacity: 0.5;
+  }
+  .card-filtros {
+    background-color: #f8f9fa;
+    border-radius: 10px;
+    padding: 20px;
+    margin-bottom: 30px;
+  }
+</style>
+{% endblock %}
 
 {% block content %}
-<div class="container mt-5">
-    <h2 class="mb-4">Catálogo de Productos Canjeables</h2>
-    <table class="table table-hover align-middle">
-        <thead>
-            <tr>
-                <th>Producto</th>
-                <th>Descripción</th>
-                <th class="text-center">Puntos requeridos</th>
-                <th class="text-center">Stock</th>
-                <th class="text-center">Acción</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for producto in productos %}
-            <tr>
-                <td>{{ producto.nombre }}</td>
-                <td>{{ producto.descripcion }}</td>
-                <td class="text-center">{{ producto.puntos_requeridos }}</td>
-                <td class="text-center">{{ producto.stock_disponible }}</td>
-                <td class="text-center">
-                    {% if producto.stock_disponible > 0 and cliente.puntos_totales >= producto.puntos_requeridos %}
-                    <a href="{% url 'clients:confirmar_canje' producto.id %}" class="btn btn-success btn-sm">
-                        Canjear
-                    </a>
-                    {% elif producto.stock_disponible <= 0 %} <span class="badge bg-secondary">Sin stock</span>
-                        {% else %}
-                        <button class="btn btn-secondary btn-sm" disabled>
-                            Puntos insuficientes
-                        </button>
-                        {% endif %}
-                </td>
-            </tr>
-            {% empty %}
-            <tr>
-                <td colspan="5" class="text-center text-muted">
-                    No hay productos canjeables disponibles en este momento.
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-    <div class="mt-3">
-        <a href="{% url 'clients:mi_panel_puntos' %}" class="btn btn-outline-primary">
-            &larr; Volver a Mi Panel de Puntos
-        </a>
+<div class="container mt-4">
+  <!-- Encabezado -->
+  <div class="row mb-4">
+    <div class="col-md-12">
+      <h2><i class="bi bi-gift me-2"></i>Catálogo de Productos Canjeables</h2>
+      <p class="text-muted">Canjea tus puntos por increíbles productos</p>
     </div>
+  </div>
+
+  <!-- Info del cliente -->
+  {% if cliente %}
+  <div class="alert alert-info">
+    <strong>{{ cliente.nombres }}</strong> - Puntos disponibles: <span class="badge bg-warning">{{ cliente.puntos_totales }}</span>
+  </div>
+  {% else %}
+  <div class="alert alert-warning">
+    <i class="bi bi-exclamation-triangle me-2"></i>
+    No tienes perfil de cliente. Contacta con administración para crear tu perfil.
+  </div>
+  {% endif %}
+
+  <!-- Filtros -->
+  <div class="card-filtros">
+    <div class="row g-2">
+      <div class="col-md-6">
+        <input type="text" id="searchProducto" class="form-control" placeholder="Buscar producto...">
+      </div>
+      <div class="col-md-6">
+        <select id="filterPuntos" class="form-select">
+          <option value="">Filtrar por puntos</option>
+          <option value="0-100">0 - 100 pts</option>
+          <option value="100-500">100 - 500 pts</option>
+          <option value="500-1000">500 - 1000 pts</option>
+          <option value="1000">1000+ pts</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <!-- Grid de productos -->
+  {% if productos %}
+  <div class="row g-4" id="productosGrid">
+    {% for producto in productos %}
+    <div class="col-lg-4 col-md-6 col-sm-12 producto-item" data-puntos="{{ producto.puntos_requeridos }}" data-nombre="{{ producto.nombre|lower }}">
+      <div class="card producto-card h-100 {% if producto.stock_disponible <= 0 %}sin-stock{% endif %}">
+        <!-- Imagen si existe -->
+        {% if producto.imagen %}
+        <img src="{{ producto.imagen.url }}" class="card-img-top" style="height: 200px; object-fit: cover;" alt="{{ producto.nombre }}">
+        {% else %}
+        <div class="card-img-top" style="height: 200px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); display: flex; align-items: center; justify-content: center;">
+          <i class="bi bi-gift" style="font-size: 3rem; color: white;"></i>
+        </div>
+        {% endif %}
+
+        <div class="card-body d-flex flex-column">
+          <h5 class="card-title">{{ producto.nombre }}</h5>
+          <p class="card-text text-muted flex-grow-1">{{ producto.descripcion|truncatewords:15 }}</p>
+
+          <!-- Puntos requeridos -->
+          <div class="text-center mb-2">
+            <div class="puntos-badge">{{ producto.puntos_requeridos }} pts</div>
+          </div>
+
+          <!-- Stock -->
+          <div class="text-center mb-3">
+            {% if producto.stock_disponible > 0 %}
+            <small class="text-success"><strong>Stock: {{ producto.stock_disponible }}</strong></small>
+            {% else %}
+            <small class="text-danger"><strong>Sin Stock</strong></small>
+            {% endif %}
+          </div>
+
+          <!-- Botón canjear -->
+          <div>
+            {% if cliente and producto.stock_disponible > 0 %}
+              {% if cliente.puntos_totales >= producto.puntos_requeridos %}
+              <form method="GET" action="{% url 'clients:confirmar_canje' producto.id %}">
+                <input type="hidden" name="cliente_id" value="{{ cliente.id }}">
+                <button type="submit" class="btn btn-primary w-100">
+                  <i class="bi bi-gift me-1"></i>Canjear Ahora
+                </button>
+              </form>
+              {% else %}
+              <button class="btn btn-warning w-100" disabled title="Puntos insuficientes">
+                <i class="bi bi-exclamation-circle me-1"></i>Puntos Insuficientes
+              </button>
+              <small class="text-danger d-block mt-1">Te faltan {{ producto.puntos_requeridos - cliente.puntos_totales }} pts</small>
+              {% endif %}
+            {% else %}
+            <button class="btn btn-secondary w-100" disabled>
+              <i class="bi bi-lock me-1"></i>No disponible
+            </button>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="alert alert-info text-center">
+    <i class="bi bi-inbox" style="font-size: 2rem;"></i>
+    <p class="mt-3 mb-0">No hay productos disponibles para canjear en este momento</p>
+  </div>
+  {% endif %}
 </div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  // Búsqueda de productos
+  document.getElementById('searchProducto').addEventListener('keyup', function() {
+    const search = this.value.toLowerCase();
+    document.querySelectorAll('.producto-item').forEach(item => {
+      const nombre = item.dataset.nombre;
+      item.style.display = nombre.includes(search) ? '' : 'none';
+    });
+  });
+
+  // Filtrar por puntos
+  document.getElementById('filterPuntos').addEventListener('change', function() {
+    const filter = this.value;
+    document.querySelectorAll('.producto-item').forEach(item => {
+      const puntos = parseInt(item.dataset.puntos);
+      let show = true;
+      
+      if (filter === '0-100') show = puntos <= 100;
+      else if (filter === '100-500') show = puntos > 100 && puntos <= 500;
+      else if (filter === '500-1000') show = puntos > 500 && puntos <= 1000;
+      else if (filter === '1000') show = puntos > 1000;
+      
+      item.style.display = show ? '' : 'none';
+    });
+  });
+</script>
 {% endblock %}

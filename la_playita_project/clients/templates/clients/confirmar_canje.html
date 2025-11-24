@@ -1,50 +1,162 @@
 {% extends "core/base.html" %}
 {% load static %}
 
-{% block title %}Confirmar Canje{% endblock %}
+{% block title %}Confirmar Canje - La Playita{% endblock %}
+
+{% block extra_css %}
+<style>
+  .canje-container {
+    max-width: 600px;
+    margin: 50px auto;
+  }
+  .regalo-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 30px;
+    border-radius: 10px 10px 0 0;
+    text-align: center;
+  }
+  .regalo-header h2 {
+    margin-bottom: 5px;
+  }
+  .info-box {
+    display: flex;
+    justify-content: space-between;
+    padding: 20px;
+    background-color: #f8f9fa;
+    margin: 15px 0;
+    border-radius: 8px;
+    border-left: 4px solid #667eea;
+  }
+  .info-label {
+    font-size: 0.9em;
+    color: #6c757d;
+    text-transform: uppercase;
+    font-weight: 600;
+  }
+  .info-valor {
+    font-size: 1.5em;
+    font-weight: bold;
+    color: #333;
+  }
+  .puntos-requeridos {
+    color: #ffc107;
+  }
+  .puntos-disponibles {
+    color: #28a745;
+  }
+  .alerta-error {
+    border-left-color: #dc3545;
+  }
+  .alerta-exito {
+    border-left-color: #28a745;
+  }
+  .btn-canjear {
+    width: 100%;
+    padding: 15px;
+    font-size: 1.1em;
+    font-weight: bold;
+    margin-top: 20px;
+  }
+</style>
+{% endblock %}
 
 {% block content %}
-<div class="container py-5">
-    <div class="row justify-content-center">
-        <div class="col-md-6">
-            <div class="card border-0 shadow-lg">
-                <div class="card-header bg-primary text-white text-center py-3">
-                    <h4 class="mb-0">Confirmar Canje</h4>
-                </div>
-                <div class="card-body p-4">
-                    <div class="text-center mb-4">
-                        <img src="{% static 'img/gift-box.png' %}" alt="Regalo" style="width: 80px; opacity: 0.8;"
-                            class="mb-3">
-                        <h5 class="text-muted">Estás a punto de canjear:</h5>
-                        <h2 class="fw-bold text-primary">{{ producto.nombre }}</h2>
-                        <p class="text-muted">{{ producto.descripcion }}</p>
-                    </div>
+<div class="container">
+  <div class="canje-container">
+    <!-- Encabezado -->
+    <div class="regalo-header">
+      <h2><i class="bi bi-gift-fill me-2"></i>Confirmar Canje</h2>
+      <p class="mb-0">Estás a punto de canjear un increíble producto</p>
+    </div>
 
-                    <div class="alert alert-light border text-center mb-4">
-                        <div class="row">
-                            <div class="col-6 border-end">
-                                <small class="text-muted d-block">Puntos Requeridos</small>
-                                <span class="h4 fw-bold text-danger">{{ puntos_requeridos }}</span>
-                            </div>
-                            <div class="col-6">
-                                <small class="text-muted d-block">Tus Puntos</small>
-                                </a>
-                            </div>
-                            </form>
-                            {% else %}
-                            <div class="alert alert-warning text-center">
-                                <i class="fas fa-exclamation-triangle me-2"></i>
-                                No tienes suficientes puntos. Te faltan <strong>{{ diferencia }}</strong> puntos.
-                            </div>
-                            <div class="d-grid">
-                                <a href="{% url 'clients:productos_canjebles' %}" class="btn btn-secondary">
-                                    Volver al catálogo
-                                </a>
-                            </div>
-                            {% endif %}
-                        </div>
-                    </div>
-                </div>
-            </div>
+    <div class="card shadow-sm">
+      <!-- Información del Producto -->
+      <div class="card-body">
+        <h4 class="mb-1">{{ producto.nombre }}</h4>
+        <p class="text-muted mb-3">{{ producto.descripcion }}</p>
+
+        <!-- Info del cliente que está canjeando -->
+        <div class="alert alert-secondary mb-3">
+          <strong>Cliente:</strong> {{ cliente.nombres }} {{ cliente.apellidos }}<br>
+          <strong>Documento:</strong> {{ cliente.documento }}<br>
+          <strong>Puntos disponibles:</strong> {{ puntos_disponibles }}
         </div>
-        {% endblock %}
+
+        {% if puede_canjear %}
+          <!-- Información de puntos - EXITOSO -->
+          <div class="info-box alerta-exito">
+            <div>
+              <div class="info-label">Puntos Requeridos</div>
+              <div class="info-valor puntos-requeridos">{{ puntos_requeridos }}</div>
+            </div>
+            <div class="text-end">
+              <div class="info-label">Puntos Disponibles</div>
+              <div class="info-valor puntos-disponibles">{{ puntos_disponibles }}</div>
+            </div>
+          </div>
+
+          <!-- Resumen -->
+          <div class="alert alert-info">
+            <strong>¿Deseas continuar?</strong>
+            <p class="mb-0 mt-2">Se descontarán <strong>{{ puntos_requeridos }} puntos</strong> de tu cuenta.</p>
+            <p class="mb-0">Te quedarán <strong>{{ puntos_disponibles|add:"-"|add:puntos_requeridos }} puntos</strong> disponibles después del canje.</p>
+          </div>
+
+          <!-- Formulario de confirmación -->
+          <form method="POST" id="formCanje" onsubmit="return confirmarCanje();">
+            {% csrf_token %}
+            <input type="hidden" name="cliente_id" value="{{ cliente.id }}">
+            <button type="submit" class="btn btn-success btn-canjear">
+              <i class="bi bi-check-circle me-2"></i>Confirmar Canje
+            </button>
+            <a href="{% url 'clients:panel_puntos' cliente.id %}" class="btn btn-secondary btn-canjear">
+              <i class="bi bi-arrow-left me-2"></i>Volver al Panel
+            </a>
+          </form>
+
+        {% else %}
+          <!-- Información de puntos - ERROR -->
+          <div class="info-box alerta-error">
+            <div>
+              <div class="info-label">Puntos Requeridos</div>
+              <div class="info-valor puntos-requeridos">{{ puntos_requeridos }}</div>
+            </div>
+            <div class="text-end">
+              <div class="info-label">Puntos Disponibles</div>
+              <div class="info-valor puntos-disponibles">{{ puntos_disponibles }}</div>
+            </div>
+          </div>
+
+          <!-- Alerta de error -->
+          <div class="alert alert-danger" role="alert">
+            <h5 class="alert-heading">
+              <i class="bi bi-exclamation-triangle me-2"></i>Puntos Insuficientes
+            </h5>
+            <p>No tienes suficientes puntos para este canje.</p>
+            <hr>
+            <p class="mb-0">
+              <strong>Te faltan {{ diferencia }} puntos.</strong>
+              <br>
+              <small>Sigue acumulando puntos en tus próximas compras.</small>
+            </p>
+          </div>
+
+          <!-- Botón para volver -->
+          <a href="{% url 'clients:panel_puntos' cliente.id %}" class="btn btn-primary btn-canjear">
+            <i class="bi bi-arrow-left me-2"></i>Volver al Panel
+          </a>
+
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function confirmarCanje() {
+  return confirm('¿Estás seguro de que deseas canjear {{ producto.nombre }}?\n\nCliente: {{ cliente.nombres }} {{ cliente.apellidos }}\nSe descontarán {{ puntos_requeridos }} puntos de tu cuenta.');
+}
+</script>
+
+{% endblock %}
