@@ -1,0 +1,84 @@
+{% extends 'core/base.html' %}
+{% load static %}
+
+{% block title %}Registrar Nuevo PQRS{% endblock %}
+
+{% block extra_css %}
+    <link rel="stylesheet" href="{% static 'pqrs/css/pqrs.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="card shadow-sm">
+        <div class="card-header bg-primary text-white">
+            <h4 class="mb-0">Registrar Nuevo PQRS</h4>
+        </div>
+        <div class="card-body">
+            <form method="post" id="pqrsForm">
+                {% csrf_token %}
+                <div class="mb-3">
+                    <label for="cliente" class="form-label">Cliente</label>
+                    <div class="input-group">
+                        <select class="form-select" id="cliente" name="cliente" required>
+                            <option value="" selected disabled>Seleccione un cliente</option>
+                            {% for cliente in clientes %}
+                                <option value="{{ cliente.id }}">{{ cliente.nombres }} {{ cliente.apellidos }} ({{ cliente.documento }})</option>
+                            {% endfor %}
+                        </select>
+                        <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#nuevoClienteModal">
+                            <i class="bi bi-plus"></i> Nuevo Cliente
+                        </button>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label for="id_tipo" class="form-label">{{ form.tipo.label }}</label>
+                        {{ form.tipo }}
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label for="id_descripcion" class="form-label">{{ form.descripcion.label }}</label>
+                    {{ form.descripcion }}
+                </div>
+                <div class="d-flex justify-content-end">
+                    <a href="{% url 'pqrs:pqrs_list' %}" class="btn btn-secondary me-2">
+                        <i class="bi bi-x-circle"></i> Cancelar
+                    </a>
+                    <button type="submit" class="btn btn-success">
+                        <i class="bi bi-check-circle"></i> Guardar PQRS
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Nuevo Cliente -->
+<div class="modal fade" id="nuevoClienteModal" tabindex="-1" aria-labelledby="nuevoClienteModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="nuevoClienteModalLabel">Nuevo Cliente</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="nuevoClienteForm">
+                    <!-- Fields for new client -->
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="guardarClienteBtn">Guardar</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    // Logic for saving new client via AJAX
+});
+</script>
+{% endblock %}

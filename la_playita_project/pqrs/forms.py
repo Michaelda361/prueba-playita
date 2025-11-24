@@ -13,12 +13,20 @@ class PqrsForm(forms.ModelForm):
 
 
 class PqrsUpdateForm(forms.ModelForm):
-    descripcion_cambio = forms.CharField(widget=forms.Textarea(attrs={'class': 'form-control', 'rows': 3}), label="Observación del cambio de estado", required=False)
+    observacion_estado = forms.CharField(
+        widget=forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
+        label="Observación para el cambio de estado",
+        required=False
+    )
+    nota_interna = forms.CharField(
+        widget=forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
+        label="Añadir nota interna",
+        required=False
+    )
 
     class Meta:
         model = Pqrs
-        fields = ['respuesta', 'estado']
+        fields = ['respuesta']
         widgets = {
             'respuesta': forms.Textarea(attrs={'class': 'form-control', 'rows': 5}),
-            'estado': forms.Select(attrs={'class': 'form-select'}),
         }

@@ -2,212 +2,153 @@
 {% load static %}
 {% load humanize %}
 {% load auth_extras %}
+{% load pqrs_extras %}
 
 {% block title %}Gestión de PQRS{% endblock %}
 
+{% block extra_css %}
+    <link rel="stylesheet" href="{% static 'pqrs/css/pqrs.css' %}">
+{% endblock %}
+
 {% block content %}
-<div class="container-fluid h-100 p-0">
-    <div class="row g-0 h-100">
-        <div class="col-md-7 d-flex flex-column p-3" style="max-height: 100%;">
-            <div class="bg-white border rounded-3 shadow-sm d-flex flex-column flex-grow-1 p-3">
-                <div class="d-flex justify-content-between align-items-center mb-3 flex-shrink-0">
-                    <h3 class="text-primary m-0">Historial de PQRS</h3>
-                    <form method="get" class="mb-3">
-                        <div class="input-group">
-                            <input type="text" class="form-control" name="q" placeholder="Buscar por cliente, tipo, estado..." value="{{ request.GET.q }}">
-                            <button class="btn btn-outline-secondary" type="submit">
-                                <i class="bi bi-search"></i> Buscar
-                            </button>
-                        </div>
-                    </form>
-                </div>
-                <div class="table-responsive flex-grow-1" style="overflow-y: auto;">
-                    <table class="table table-hover">
-                        <thead>
-                            <tr>
-                                <th>Tipo</th>
-                                <th>Cliente</th>
-                                <th>Registrado por</th>
-                                <th>Estado</th>
-                                <th>Fecha Creación</th>
-                                <th>Acciones</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for p in pqrs %}
-                            <tr id="pqrs-{{ p.id }}">
-                                <td>{{ p.get_tipo_display }}</td>
-                                <td>{{ p.cliente.nombres }} {{ p.cliente.apellidos }}</td>
-                                <td>{{ p.usuario.get_full_name|default:p.usuario.username }}</td>
-                                <td><span class="badge bg-info">{{ p.get_estado_display }}</span></td>
-                                <td>{{ p.fecha_creacion|date:"d/m/Y H:i" }}</td>
-                                <td>
-                                    <a href="{% url 'pqrs:pqrs_detail' p.id %}" class="btn btn-sm btn-info">
-                                        <i class="bi bi-eye"></i> Ver
-                                    </a>
-                                    {% if user|has_role:'Administrador' %}
-                                    <button type="button" class="btn btn-sm btn-danger" onclick="eliminarPqrs('{{ p.id }}', '{% url 'pqrs:pqrs_delete' p.id %}')">
-                                        <i class="bi bi-trash"></i>
-                                    </button>
-                                    {% endif %}
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
+<div class="container mt-4">
+    <!-- Summary Stats -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card text-white bg-primary">
+                <div class="card-body">
+                    <h5 class="card-title">{{ stats.total }}</h5>
+                    <p class="card-text">Total PQRS</p>
                 </div>
             </div>
         </div>
-        <div class="col-md-5 d-flex flex-column p-3">
-            <div class="bg-light border rounded-3 shadow-sm h-100 d-flex flex-column">
-                <div class="p-3 border-bottom">
-                    <h3 class="text-success m-0">Nuevo PQRS</h3>
+        <div class="col-md-2">
+            <div class="card text-white bg-info">
+                <div class="card-body">
+                    <h5 class="card-title">{{ stats.nuevos }}</h5>
+                    <p class="card-text">Nuevos</p>
                 </div>
-                <form method="post" action="{% url 'pqrs:pqrs_list' %}" id="pqrsForm" class="d-flex flex-column h-100 p-3">
-                    {% csrf_token %}
-                    <div class="mb-3">
-                        <label for="cliente" class="form-label">Cliente</label>
-                        <div class="input-group">
-                            <select class="form-select" id="cliente" name="cliente" required>
-                                <option value="" selected disabled>Seleccione un cliente</option>
-                                {% for cliente in clientes %}
-                                    <option value="{{ cliente.id }}">{{ cliente.nombres }} {{ cliente.apellidos }} ({{ cliente.documento }})</option>
-                                {% endfor %}
-                            </select>
-                            <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#nuevoClienteModal">
-                                <i class="bi bi-plus"></i>
-                            </button>
-                        </div>
-                    </div>
-                    {{ form.as_p }}
-                    <div class="mt-auto">
-                        <button type="submit" class="btn btn-primary">Guardar</button>
-                    </div>
-                </form>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card text-dark bg-warning">
+                <div class="card-body">
+                    <h5 class="card-title">{{ stats.en_proceso }}</h5>
+                    <p class="card-text">En Proceso</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card text-white bg-success">
+                <div class="card-body">
+                    <h5 class="card-title">{{ stats.resueltos }}</h5>
+                    <p class="card-text">Resueltos</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-white bg-secondary">
+                <div class="card-body">
+                    <h5 class="card-title">{{ stats.cerrados }}</h5>
+                    <p class="card-text">Cerrados</p>
+                </div>
             </div>
         </div>
     </div>
-</div>
 
-<!-- Modal Nuevo Cliente -->
-<div class="modal fade" id="nuevoClienteModal" tabindex="-1" aria-labelledby="nuevoClienteModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="nuevoClienteModalLabel">Nuevo Cliente</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+    <div class="card shadow-sm">
+        <div class="card-header d-flex justify-content-between align-items-center bg-light">
+            <h4 class="mb-0 text-primary">Historial de PQRS</h4>
+            <a href="{% url 'pqrs:pqrs_create' %}" class="btn btn-primary">
+                <i class="bi bi-plus-circle"></i> Registrar PQRS
+            </a>
+        </div>
+        <div class="card-body">
+            <form method="get" class="mb-3">
+                <div class="input-group">
+                    <input type="text" class="form-control" name="q" placeholder="Buscar por cliente, tipo, estado..." value="{{ request.GET.q }}">
+                    <button class="btn btn-outline-secondary" type="submit">
+                        <i class="bi bi-search"></i> Buscar
+                    </button>
+                </div>
+            </form>
+            <div class="table-responsive">
+                <table class="table table-hover align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th>ID</th>
+                            <th>Tipo</th>
+                            <th>Cliente</th>
+                            <th>Registrado por</th>
+                            <th>Estado</th>
+                            <th>Fecha Creación</th>
+                            <th class="text-center">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for p in pqrs %}
+                        <tr id="pqrs-{{ p.id }}">
+                            <td>#{{ p.id }}</td>
+                            <td>{{ p.get_tipo_display }}</td>
+                            <td>{{ p.cliente.nombres }} {{ p.cliente.apellidos }}</td>
+                            <td>{{ p.usuario.get_full_name|default:p.usuario.username }}</td>
+                            <td><span class="badge {{ p.estado|status_badge }}">{{ p.get_estado_display }}</span></td>
+                            <td>{{ p.fecha_creacion|date:"d/m/Y H:i" }}</td>
+                            <td class="text-center">
+                                <a href="{% url 'pqrs:pqrs_detail' p.id %}" class="btn btn-sm btn-outline-primary" data-bs-toggle="tooltip" title="Ver Detalles">
+                                    <i class="bi bi-eye"></i>
+                                </a>
+                                {% if user|has_role:'Administrador' %}
+                                <button type="button" class="btn btn-sm btn-outline-danger" onclick="eliminarPqrs('{{ p.id }}', '{% url 'pqrs:pqrs_delete' p.id %}')" data-bs-toggle="tooltip" title="Eliminar">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="7" class="text-center">No se encontraron PQRS.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
             </div>
-            <div class="modal-body">
-                <form id="nuevoClienteForm">
-                    <div class="mb-3">
-                        <label for="nombres" class="form-label">Nombres</label>
-                        <input type="text" class="form-control" id="nombres" required>
-                    </div>
-                    <div class="mb-3">
-                        <label for="apellidos" class="form-label">Apellidos</label>
-                        <input type="text" class="form-control" id="apellidos" required>
-                    </div>
-                    <div class="mb-3">
-                        <label for="documento" class="form-label">Documento</label>
-                        <input type="text" class="form-control" id="documento" required>
-                    </div>
-                    <div class="mb-3">
-                        <label for="telefono" class="form-label">Teléfono</label>
-                        <input type="text" class="form-control" id="telefono">
-                    </div>
-                    <div class="mb-3">
-                        <label for="email" class="form-label">Email</label>
-                        <input type="email" class="form-control" id="email">
-                    </div>
-                </form>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                <button type="button" class="btn btn-primary" id="guardarClienteBtn">Guardar</button>
-            </div>
+
+            {% if pqrs.has_other_pages %}
+            <nav aria-label="Page navigation">
+                <ul class="pagination justify-content-center">
+                    {% if pqrs.has_previous %}
+                        <li class="page-item"><a class="page-link" href="?page=1{% if query %}&q={{ query }}{% endif %}">&laquo; Primera</a></li>
+                        <li class="page-item"><a class="page-link" href="?page={{ pqrs.previous_page_number }}{% if query %}&q={{ query }}{% endif %}">Anterior</a></li>
+                    {% endif %}
+                    
+                    <li class="page-item active" aria-current="page">
+                        <span class="page-link">Página {{ pqrs.number }} de {{ pqrs.paginator.num_pages }}</span>
+                    </li>
+                    
+                    {% if pqrs.has_next %}
+                        <li class="page-item"><a class="page-link" href="?page={{ pqrs.next_page_number }}{% if query %}&q={{ query }}{% endif %}">Siguiente</a></li>
+                        <li class="page-item"><a class="page-link" href="?page={{ pqrs.paginator.num_pages }}{% if query %}&q={{ query }}{% endif %}">Última &raquo;</a></li>
+                    {% endif %}
+                </ul>
+            </nav>
+            {% endif %}
         </div>
     </div>
 </div>
 {% endblock %}
 
 {% block extra_js %}
-<style>
-    html, body {
-        height: 100%;
-        overflow: hidden;
-    }
-
-    main.container {
-        max-width: 100% !important;
-        height: calc(100vh - 72px) !important; 
-        padding: 0 !important;
-        margin: 0 !important;
-    }
-
-    .container-fluid {
-        height: 100%;
-        overflow: hidden;
-    }
-
-    .table-responsive {
-        height: calc(100% - 50px); 
-        overflow: auto;
-    }
-</style>
 <script>
 document.addEventListener('DOMContentLoaded', function () {
-    // Function to handle client creation
-    async function guardarNuevoCliente(data) {
-        try {
-            const response = await fetch("{% url 'clients:cliente_create_ajax' %}", {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
-                },
-                body: JSON.stringify(data)
-            });
+    // Initialize tooltips
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+    var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl)
+    })
 
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || 'Error al guardar el cliente.');
-            }
-
-            const cliente = await response.json();
-            const select = document.getElementById('cliente');
-            const option = new Option(`${cliente.nombres} ${cliente.apellidos} (${cliente.documento})`, cliente.id);
-            select.add(option);
-            select.value = cliente.id;
-
-            const modal = bootstrap.Modal.getInstance(document.getElementById('nuevoClienteModal'));
-            modal.hide();
-            document.getElementById('nuevoClienteForm').reset();
-
-            Swal.fire('Éxito', 'Cliente creado exitosamente.', 'success');
-
-        } catch (error) {
-            Swal.fire('Error', error.message, 'error');
-        }
-    }
-
-    // Event listener for save client button
-    document.getElementById('guardarClienteBtn').addEventListener('click', function () {
-        const form = document.getElementById('nuevoClienteForm');
-        if (!form.checkValidity()) {
-            form.reportValidity();
-            return;
-        }
-        const data = {
-            nombres: document.getElementById('nombres').value,
-            apellidos: document.getElementById('apellidos').value,
-            documento: document.getElementById('documento').value,
-            telefono: document.getElementById('telefono').value,
-            email: document.getElementById('email').value,
-        };
-        guardarNuevoCliente(data);
-    });
-
-    // Function to handle PQRS deletion
+    // The javascript for deleting will be moved to a separate file
+    // For now, it is kept here to not lose the functionality
     window.eliminarPqrs = async function(pqrsId, deleteUrl) {
         const result = await Swal.fire({
             title: '¿Estás seguro?',
@@ -234,9 +175,9 @@ document.addEventListener('DOMContentLoaded', function () {
                     throw new Error(errorData.error || 'Error al eliminar el PQRS.');
                 }
 
-                document.getElementById(`pqrs-${pqrsId}`).remove();
-                Swal.fire('¡Eliminado!', 'El PQRS ha sido eliminado.', 'success');
-
+                // Instead of removing the element, we reload the page to show the correct pagination
+                window.location.reload();
+                
             } catch (error) {
                 Swal.fire('Error', error.message, 'error');
             }

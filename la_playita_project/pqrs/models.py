@@ -1,6 +1,6 @@
 from django.db import models
 from django.conf import settings
-
+from django.utils import timezone
 
 class Pqrs(models.Model):
     TIPO_PETICION = 'peticion'
@@ -30,11 +30,23 @@ class Pqrs(models.Model):
     tipo = models.CharField(max_length=20, choices=TIPO_CHOICES)
     descripcion = models.TextField()
     respuesta = models.TextField(blank=True, null=True)
-    estado = models.CharField(max_length=20, choices=ESTADO_CHOICES, default='pendiente')
-    fecha_creacion = models.DateTimeField(auto_now_add=True)
-    fecha_actualizacion = models.DateTimeField(blank=True, null=True)
-    cliente = models.ForeignKey('clients.Cliente', on_delete=models.CASCADE)
-    usuario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, blank=True, null=True)
+    estado = models.CharField(max_length=20, choices=ESTADO_CHOICES, default=ESTADO_NUEVO)
+    fecha_creacion = models.DateTimeField(default=timezone.now)
+    fecha_actualizacion = models.DateTimeField(auto_now=True, null=True)
+    cliente = models.ForeignKey(
+        'clients.Cliente',
+        on_delete=models.CASCADE,
+        db_column='cliente_id',
+        db_constraint=False
+    )
+    usuario = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        db_column='usuario_id',
+        db_constraint=False
+    )
 
     def __str__(self):
         return f'{self.get_tipo_display()} de {self.cliente}'
@@ -44,17 +56,42 @@ class Pqrs(models.Model):
         db_table = 'pqrs'
 
 
-class PqrsHistorial(models.Model):
-    pqrs = models.ForeignKey(Pqrs, on_delete=models.CASCADE)
-    usuario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, blank=True, null=True)
-    estado_anterior = models.CharField(max_length=20)
-    estado_nuevo = models.CharField(max_length=20)
-    descripcion_cambio = models.TextField(blank=True, null=True)
-    fecha_cambio = models.DateTimeField(auto_now_add=True)
+class PqrsEvento(models.Model):
+    EVENTO_CREACION = 'creacion'
+    EVENTO_ESTADO = 'estado'
+    EVENTO_RESPUESTA = 'respuesta'
+    EVENTO_NOTA = 'nota'
+
+    TIPO_EVENTO_CHOICES = [
+        (EVENTO_CREACION, 'Creación de PQRS'),
+        (EVENTO_ESTADO, 'Cambio de Estado'),
+        (EVENTO_RESPUESTA, 'Respuesta al Cliente'),
+        (EVENTO_NOTA, 'Nota Interna'),
+    ]
+
+    pqrs = models.ForeignKey(
+        Pqrs,
+        related_name='eventos',
+        on_delete=models.CASCADE,
+        db_column='pqrs_id',
+        db_constraint=False
+    )
+    usuario = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        db_column='usuario_id',
+        db_constraint=False
+    )
+    tipo_evento = models.CharField(max_length=20, choices=TIPO_EVENTO_CHOICES)
+    comentario = models.TextField(blank=True, null=True)
+    fecha_evento = models.DateTimeField(default=timezone.now)
 
     def __str__(self):
-        return f'Historial de {self.pqrs}'
+        return f'Evento de {self.get_tipo_evento_display()} en {self.pqrs}'
 
     class Meta:
-        managed = False
-        db_table = 'pqrs_historial'
+        managed = True
+        db_table = 'pqrs_evento'
+        ordering = ['-fecha_evento']
