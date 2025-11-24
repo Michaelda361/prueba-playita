@@ -8,7 +8,7 @@ from django.http import JsonResponse, HttpResponse
 from django.views.decorators.http import require_POST
 from django.template.loader import render_to_string
 from weasyprint import HTML
-from inventory.models import Producto, Lote
+from inventory.models import Producto, Lote, MovimientoInventario
 from clients.models import Cliente, PuntosFidelizacion
 from .models import Venta, VentaDetalle, Pago
 from .forms import ProductoSearchForm, VentaForm
@@ -142,8 +142,20 @@ def procesar_venta(request):
                 subtotal=Decimal(item['precio']) * cantidad
             )
             
+            # Actualizar cantidad disponible del lote
             lote.cantidad_disponible -= cantidad
             lote.save()
+            
+            # ===== REGISTRAR MOVIMIENTO DE INVENTARIO =====
+            MovimientoInventario.objects.create(
+                producto=producto,
+                lote=lote,
+                cantidad=-cantidad,  # Negativo porque es una salida
+                tipo_movimiento='salida',
+                descripcion=f'Venta #{nueva_venta.id} - {producto.nombre}',
+                venta=nueva_venta
+            )
+            
             productos_a_actualizar.add(producto)
 
         for producto in productos_a_actualizar:
