@@ -1,67 +1,178 @@
 {% extends 'core/base.html' %}
+{% load static %}
+{% load pqrs_extras %}
 
 {% block title %}Detalle de PQRS #{{ pqrs.id }}{% endblock %}
 
+{% block extra_css %}
+    <link rel="stylesheet" href="{% static 'pqrs/css/pqrs.css' %}">
+{% endblock %}
+
 {% block content %}
-<div class="container-lg mt-4">
-    <a href="{% url 'pqrs:pqrs_list' %}" class="btn btn-secondary mb-3">
-        <i class="bi bi-arrow-left"></i> Volver al Listado
-    </a>
+<div class="container mt-4">
+    <div class="mb-3">
+        <a href="{% url 'pqrs:pqrs_list' %}" class="btn btn-secondary">
+            <i class="bi bi-arrow-left"></i> Volver al Listado
+        </a>
+    </div>
 
     <div class="row">
-        <div class="col-md-8">
-            <div class="card mb-4">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <h4 class="mb-0">PQRS #{{ pqrs.id }}</h4>
-                    <span class="badge bg-info">{{ pqrs.get_estado_display }}</span>
+        <!-- Columna Principal -->
+        <div class="col-lg-8">
+            <!-- Stepper -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Línea de Tiempo del PQRS</h5>
+                    <span class="badge {{ pqrs.estado|status_badge }} rounded-pill">{{ pqrs.get_estado_display }}</span>
                 </div>
                 <div class="card-body">
-                    <p class="card-text">{{ pqrs.descripcion }}</p>
-                    <hr>
-                    <p><strong>Cliente:</strong> {{ pqrs.cliente.nombres }} {{ pqrs.cliente.apellidos }} ({{ pqrs.cliente.documento }})</p>
-                    <p><strong>Correo del Cliente:</strong> {{ pqrs.cliente.correo }}</p>
-                    <p><strong>Teléfono del Cliente:</strong> {{ pqrs.cliente.telefono }}</p>
-                    <p><strong>Tipo:</strong> {{ pqrs.get_tipo_display }}</p>
-                    <p><strong>Registrado por:</strong> {{ pqrs.usuario.get_full_name|default:pqrs.usuario.username }}</p>
-                    <p><strong>Fecha de Creación:</strong> {{ pqrs.fecha_creacion|date:"d/m/Y H:i" }}</p>
-                    <p><strong>Última Actualización:</strong> {{ pqrs.fecha_actualizacion|date:"d/m/Y H:i" }}</p>
+                    <div class="stepper-wrapper">
+                        {% for choice in pqrs.ESTADO_CHOICES %}
+                            <div class="stepper-item {% if pqrs.estado == choice.0 %}active{% elif forloop.counter < pqrs.ESTADO_CHOICES|length %}completed{% endif %}">
+                                <div class="step-counter">{{ forloop.counter }}</div>
+                                <div class="step-name">{{ choice.1 }}</div>
+                            </div>
+                        {% endfor %}
+                    </div>
                 </div>
             </div>
 
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="mb-0">Actualizar PQRS</h5>
+            <!-- Detalles del PQRS -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                    <h4 class="mb-0">Detalle del PQRS #{{ pqrs.id }}</h4>
+                </div>
+                <div class="card-body">
+                    <h5 class="card-title">{{ pqrs.get_tipo_display }}</h5>
+                    <p class="card-text">{{ pqrs.descripcion }}</p>
+                    <hr>
+                    <h6>Información del Cliente</h6>
+                    <p><strong>Nombre:</strong> {{ pqrs.cliente.nombres }} {{ pqrs.cliente.apellidos }}</p>
+                    <p><strong>Documento:</strong> {{ pqrs.cliente.documento }}</p>
+                    <p><strong>Email:</strong> {{ pqrs.cliente.correo }}</p>
+                    <p><strong>Teléfono:</strong> {{ pqrs.cliente.telefono }}</p>
+                    <hr>
+                    <h6>Detalles del Registro</h6>
+                    <p><strong>Registrado por:</strong> {{ pqrs.usuario.get_full_name|default:pqrs.usuario.username }}</p>
+                    <p><strong>Fecha de Creación:</strong> {{ pqrs.fecha_creacion|date:"d/m/Y, H:i" }}</p>
+                    <p><strong>Última Actualización:</strong> {{ pqrs.fecha_actualizacion|date:"d/m/Y, H:i"|default:"N/A" }}</p>
+                </div>
+            </div>
+
+            <!-- Formulario de Actualización y Acciones -->
+            <div class="card shadow-sm">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0">Responder y Gestionar PQRS</h5>
                 </div>
                 <div class="card-body">
                     <form method="post" action="{% url 'pqrs:pqrs_update' pqrs.id %}">
                         {% csrf_token %}
-                        {{ form.as_p }}
-                        <button type="submit" class="btn btn-primary">Actualizar</button>
+                        
+                        <!-- Sección: Respuesta para el Cliente -->
+                        <div class="mb-4 p-3 border rounded">
+                            <h6 class="card-title text-primary"><i class="bi bi-chat-dots"></i> 1. Redactar Respuesta al Cliente</h6>
+                            <p class="card-text text-muted small mb-3">
+                                Utiliza este campo para redactar la respuesta formal dirigida al cliente. Esta comunicación se registrará y podrá ser consultada por el cliente.
+                            </p>
+                            <div class="mb-3">
+                                <label for="id_respuesta" class="form-label visually-hidden">Respuesta para el Cliente</label>
+                                {{ form.respuesta }}
+                                <div class="form-text">La respuesta se guardará y será visible para el cliente, sirviendo como comunicación oficial.</div>
+                            </div>
+                            <div class="d-flex justify-content-end">
+                                <button type="submit" name="action" value="save_response" class="btn btn-primary">
+                                    <i class="bi bi-save"></i> Guardar Respuesta
+                                </button>
+                            </div>
+                        </div>
+
+                        <hr class="my-4">
+
+                        <!-- Sección: Gestionar Estado y Observaciones Internas -->
+                        <div class="mb-3 p-3 border rounded">
+                            <h6 class="card-title text-success"><i class="bi bi-clipboard-check"></i> 2. Gestión Interna y Cambio de Estado</h6>
+                            <p class="card-text text-muted small mb-3">
+                                Gestiona el flujo interno del PQRS. Aquí puedes registrar notas internas relevantes y cambiar el estado del PQRS según corresponda.
+                            </p>
+                            <div class="mb-3">
+                                <label for="id_observacion_estado" class="form-label"><strong>Observación para Cambio de Estado</strong></label>
+                                {{ form.observacion_estado }}
+                                <div class="form-text">Detalla el motivo por el cual se realizará un cambio de estado. Este campo es requerido para las acciones de "Iniciar Proceso", "Marcar como Resuelto" o "Cerrar PQRS".</div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="id_nota_interna" class="form-label"><strong>Añadir Nota Interna Adicional</strong></label>
+                                {{ form.nota_interna }}
+                                <div class="form-text">Utiliza este campo para registrar cualquier información o comentario interno adicional que no esté directamente relacionado con un cambio de estado.</div>
+                            </div>
+
+                            <div class="d-flex flex-wrap justify-content-start align-items-center gap-2 mt-3">
+                                {% if pqrs.estado == 'nuevo' %}
+                                    <button type="submit" name="action" value="start_processing" class="btn btn-warning">
+                                        <i class="bi bi-play-circle"></i> Iniciar Proceso
+                                    </button>
+                                {% elif pqrs.estado == 'en_proceso' %}
+                                    <button type="submit" name="action" value="resolve" class="btn btn-success">
+                                        <i class="bi bi-check2-circle"></i> Marcar como Resuelto
+                                    </button>
+                                {% endif %}
+                                
+                                {% if pqrs.estado != 'cerrado' %}
+                                    <button type="submit" name="action" value="close" class="btn btn-danger">
+                                        <i class="bi bi-archive"></i> Cerrar PQRS
+                                    </button>
+                                {% endif %}
+                                <button type="submit" name="action" value="save_internal_note" class="btn btn-info ms-auto">
+                                    <i class="bi bi-sticky"></i> Añadir Nota Interna
+                                </button>
+                            </div>
+                        </div>
                     </form>
                 </div>
             </div>
         </div>
-        <div class="col-md-4">
-            <div class="card">
-                <div class="card-header">
+
+        <!-- Columna Lateral -->
+        <div class="col-lg-4">
+            <div class="card shadow-sm">
+                <div class="card-header bg-light">
                     <h5 class="mb-0">Historial de Cambios</h5>
                 </div>
                 <div class="card-body">
-                    {% if historial %}
-                        <ul class="list-group list-group-flush">
-                            {% for item in historial %}
-                                <li class="list-group-item">
-                                    <p class="mb-1"><strong>Fecha:</strong> {{ item.fecha_cambio|date:"d/m/Y H:i" }}</p>
-                                    <p class="mb-1"><strong>Usuario:</strong> {{ item.usuario.get_full_name|default:item.usuario.username }}</p>
-                                    <p class="mb-1"><strong>Cambio:</strong> {{ item.estado_anterior }} -> {{ item.estado_nuevo }}</p>
-                                    {% if item.descripcion_cambio %}
-                                        <p class="mb-1"><strong>Descripción:</strong> {{ item.descripcion_cambio }}</p>
-                                    {% endif %}
-                                </li>
+                    {% if eventos %}
+                        <div class="timeline">
+                            {% for item in eventos %}
+                                <div class="timeline-item">
+                                    <div class="timeline-dot"></div>
+                                    <div class="timeline-content">
+                                        <p class="mb-1">
+                                            <strong class="text-primary">
+                                                <i class="bi bi-person"></i> {{ item.usuario.get_full_name|default:item.usuario.username }}
+                                            </strong>
+                                            <small class="text-muted float-end"><i class="bi bi-clock"></i> {{ item.fecha_evento|date:"d/m/Y H:i" }}</small>
+                                        </p>
+                                        <p class="mb-1">
+                                            {% if item.tipo_evento == 'creacion' %}
+                                                <span class="badge bg-success"><i class="bi bi-plus-circle"></i> PQRS Creado</span>
+                                            {% elif item.tipo_evento == 'estado' %}
+                                                <span class="badge bg-info"><i class="bi bi-arrow-repeat"></i> Cambio de Estado</span>
+                                            {% elif item.tipo_evento == 'respuesta' %}
+                                                <span class="badge bg-primary"><i class="bi bi-chat-dots"></i> Respuesta Enviada</span>
+                                            {% elif item.tipo_evento == 'nota' %}
+                                                <span class="badge bg-secondary"><i class="bi bi-sticky"></i> Nota Interna Añadida</span>
+                                            {% endif %}
+                                        </p>
+                                        {% if item.comentario %}
+                                            <p class="mb-1 mt-2 fst-italic">
+                                                "{{ item.comentario }}"
+                                            </p>
+                                        {% endif %}
+                                    </div>
+                                </div>
                             {% endfor %}
-                        </ul>
+                        </div>
                     {% else %}
-                        <p class="text-muted">No hay historial de cambios.</p>
+                        <p class="text-muted">No hay historial de cambios para este PQRS.</p>
                     {% endif %}
                 </div>
             </div>

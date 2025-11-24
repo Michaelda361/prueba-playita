@@ -1,3 +1,4 @@
+from django.core.paginator import Paginator
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.http import require_POST
@@ -7,7 +8,7 @@ from django.db import models
 from django.http import JsonResponse
 from django.utils import timezone
 from django.urls import reverse
-from .models import Pqrs, PqrsHistorial
+from .models import Pqrs, PqrsEvento
 from .forms import PqrsForm, PqrsUpdateForm
 from clients.models import Cliente
 from users.decorators import check_user_role
@@ -16,6 +17,43 @@ from users.decorators import check_user_role
 @login_required
 @check_user_role(allowed_roles=['Administrador', 'Vendedor'])
 def pqrs_list(request):
+    base_query = Pqrs.objects.select_related('cliente', 'usuario').order_by('-fecha_creacion')
+    query = request.GET.get('q')
+    if query:
+        pqrs_query = base_query.filter(            
+            models.Q(cliente__nombres__icontains=query) |
+            models.Q(cliente__apellidos__icontains=query) |
+            models.Q(tipo__icontains=query) |
+            models.Q(estado__icontains=query)
+        )
+    else:
+        pqrs_query = base_query.all()
+
+    # Calculate statistics
+    stats_query = pqrs_query if query else base_query
+    stats = stats_query.aggregate(
+        total=models.Count('id'),
+        nuevos=models.Count('id', filter=models.Q(estado='nuevo')),
+        en_proceso=models.Count('id', filter=models.Q(estado='en_proceso')),
+        resueltos=models.Count('id', filter=models.Q(estado='resuelto')),
+        cerrados=models.Count('id', filter=models.Q(estado='cerrado')),
+    )
+
+    paginator = Paginator(pqrs_query, 10) # 10 items per page
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+
+    context = {
+        'pqrs': page_obj,
+        'stats': stats,
+        'query': query,
+    }
+    return render(request, 'pqrs/pqrs_list.html', context)
+
+
+@login_required
+@check_user_role(allowed_roles=['Administrador', 'Vendedor'])
+def pqrs_create(request):
     if request.method == 'POST':
         form = PqrsForm(request.POST)
         if form.is_valid():
@@ -25,7 +63,6 @@ def pqrs_list(request):
                 cliente = Cliente.objects.get(id=cliente_id)
                 pqrs.cliente = cliente
                 pqrs.usuario = request.user
-                pqrs.fecha_creacion = timezone.now()
                 pqrs.save()
                 messages.success(request, 'PQRS creado exitosamente.')
                 return redirect(reverse('pqrs:pqrs_list'))
@@ -38,34 +75,23 @@ def pqrs_list(request):
     else:
         form = PqrsForm()
 
-    pqrs_query = Pqrs.objects.select_related('cliente', 'usuario').order_by('-fecha_creacion')
-    query = request.GET.get('q')
-    if query:
-        pqrs_query = pqrs_query.filter(            
-            models.Q(cliente__nombres__icontains=query) |
-            models.Q(cliente__apellidos__icontains=query) |
-            models.Q(tipo__icontains=query) |
-            models.Q(estado__icontains=query)
-        )
-
     clientes = Cliente.objects.all()
     context = {
-        'pqrs': pqrs_query,
         'form': form,
         'clientes': clientes,
     }
-    return render(request, 'pqrs/pqrs_list.html', context)
+    return render(request, 'pqrs/pqrs_create.html', context)
 
 
 @login_required
 @check_user_role(allowed_roles=['Administrador', 'Vendedor'])
 def pqrs_detail(request, pk):
     pqrs = get_object_or_404(Pqrs, pk=pk)
-    historial = PqrsHistorial.objects.filter(pqrs=pqrs).order_by('-fecha_cambio')
+    eventos = PqrsEvento.objects.filter(pqrs=pqrs)
     form = PqrsUpdateForm(instance=pqrs)
     context = {
         'pqrs': pqrs,
-        'historial': historial,
+        'eventos': eventos,
         'form': form,
     }
     return render(request, 'pqrs/pqrs_detail.html', context)
@@ -77,31 +103,78 @@ def pqrs_update(request, pk):
     if request.method == 'POST':
         form = PqrsUpdateForm(request.POST, instance=pqrs)
         if form.is_valid():
-            estado_anterior = pqrs.estado
-            pqrs_actualizado = form.save()
-            estado_nuevo = pqrs_actualizado.estado
+            action = request.POST.get('action')
+            
+            # Save the form data (respuesta and descripcion_cambio)
+            pqrs_actualizado = form.save(commit=False)
 
-            if estado_anterior != estado_nuevo:
-                descripcion_cambio = form.cleaned_data.get('descripcion_cambio')
-                if not descripcion_cambio:
+            # 1. Handle Response Saving
+            if action == 'save_response' and form.cleaned_data.get('respuesta'):
+                pqrs_actualizado.save()
+                PqrsEvento.objects.create(
+                    pqrs=pqrs_actualizado,
+                    usuario=request.user,
+                    tipo_evento=PqrsEvento.EVENTO_RESPUESTA,
+                    comentario=form.cleaned_data.get('respuesta')
+                )
+                messages.success(request, 'Respuesta guardada exitosamente.')
+
+            # 2. Handle State Changes
+            estado_anterior = pqrs.estado
+            estado_nuevo = estado_anterior
+            
+            # Get observation for state change
+            observacion_estado = form.cleaned_data.get('observacion_estado')
+
+            is_state_change_action = False
+            if action == 'start_processing':
+                estado_nuevo = Pqrs.ESTADO_EN_PROCESO
+                is_state_change_action = True
+            elif action == 'resolve':
+                estado_nuevo = Pqrs.ESTADO_RESUELTO
+                is_state_change_action = True
+            elif action == 'close':
+                estado_nuevo = Pqrs.ESTADO_CERRADO
+                is_state_change_action = True
+            
+            if is_state_change_action:
+                if not observacion_estado:
                     messages.error(request, 'Debe proporcionar una observación para el cambio de estado.')
                     return redirect('pqrs:pqrs_detail', pk=pk)
                 
-                PqrsHistorial.objects.create(
+                pqrs_actualizado.estado = estado_nuevo
+                pqrs_actualizado.save()
+
+                PqrsEvento.objects.create(
                     pqrs=pqrs_actualizado,
                     usuario=request.user,
-                    estado_anterior=estado_anterior,
-                    estado_nuevo=estado_nuevo,
-                    descripcion_cambio=descripcion_cambio,
-                    fecha_cambio=timezone.now()
+                    tipo_evento=PqrsEvento.EVENTO_ESTADO,
+                    comentario=f'Cambio de estado: {estado_anterior} → {estado_nuevo}. Observación: {observacion_estado}'
                 )
+                messages.success(request, f'PQRS actualizado al estado: {pqrs_actualizado.get_estado_display()}.')
             
-            messages.success(request, 'PQRS actualizado exitosamente.')
+            # 3. Handle Internal Note
+            nota_interna = form.cleaned_data.get('nota_interna')
+            if action == 'save_internal_note':
+                if not nota_interna:
+                    messages.error(request, 'Debe proporcionar contenido para la nota interna.')
+                    return redirect('pqrs:pqrs_detail', pk=pk)
+                # The note is saved in the form, but we just need to create the event
+                PqrsEvento.objects.create(
+                    pqrs=pqrs_actualizado,
+                    usuario=request.user,
+                    tipo_evento=PqrsEvento.EVENTO_NOTA,
+                    comentario=nota_interna
+                )
+                messages.success(request, 'Nota interna guardada exitosamente.')
+
         else:
             for field, errors in form.errors.items():
                 for error in errors:
                     messages.error(request, f"{form.fields[field].label}: {error}")
+
     return redirect(reverse('pqrs:pqrs_detail', kwargs={'pk': pk}))
+
 
 @never_cache
 @login_required
