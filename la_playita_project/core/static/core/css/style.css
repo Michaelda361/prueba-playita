@@ -1,17 +1,17 @@
 /*
  * La Playita POS - Custom Stylesheet
- * Paleta de Colores Inspirada en el Logo:
- * - Primario (Azul/Turquesa): #00A7B5
- * - Acento (Naranja/Coral): #FF5733
- * - Fondo Claro: #F0F8FF (AliceBlue)
- * - Texto Principal: #333
+ * Paleta de Colores Moderna y Profesional:
+ * - Primario (Azul Oscuro): #003366
+ * - Acento (Azul Claro): #89CFF0
+ * - Fondo: #FFFFFF (Blanco)
+ * - Texto: #212529
  */
 
 :root {
-    --primary-color: #00A7B5; /* Azul/Turquesa del logo */
-    --accent-color: #FF5733;  /* Naranja/Coral para acentos */
-    --light-bg: #F0F8FF;      /* Un fondo muy claro, como la espuma del mar */
-    --text-color: #333;
+    --primary-color: #003366; /* Azul Oscuro Profesional */
+    --accent-color: #89CFF0;  /* Azul Claro Moderno */
+    --light-bg: #FFFFFF;      /* Fondo Blanco */
+    --text-color: #212529;    /* Texto oscuro para buen contraste */
     --white: #FFFFFF;
     --gray-light: #f8f9fa;
     --gray-dark: #343a40;
@@ -29,12 +29,13 @@ body {
 .btn-primary {
     background-color: var(--primary-color);
     border-color: var(--primary-color);
+    color: var(--white);
     transition: background-color 0.3s, transform 0.2s;
 }
 
 .btn-primary:hover {
-    background-color: #008590; /* Un poco más oscuro */
-    border-color: #008590;
+    background-color: #00264d; /* Azul Oscuro más intenso */
+    border-color: #00264d;
     transform: translateY(-2px);
 }
 
@@ -51,8 +52,8 @@ body {
 }
 
 .lp-navbar .nav-link:hover {
-    color: rgba(255, 255, 255, 0.85) !important;
-    background-color: rgba(255, 255, 255, 0.1);
+    color: rgba(255, 255, 255, 0.9) !important;
+    background-color: rgba(137, 207, 240, 0.15); /* Hover con acento azul claro */
     border-radius: 4px;
 }
 
@@ -73,6 +74,11 @@ body {
 
 .lp-navbar .dropdown-item {
     padding: 0.5rem 1rem;
+    color: var(--text-color);
+}
+
+.lp-navbar .dropdown-item:hover {
+    background-color: var(--gray-light);
 }
 
 /* --- Landing Page --- */
@@ -83,7 +89,8 @@ body {
     align-items: center;
     min-height: 80vh;
     text-align: center;
-    background: linear-gradient(135deg, #a2d2ff 0%, #bde0fe 100%);
+    background: linear-gradient(135deg, var(--primary-color) 0%, var(--accent-color) 100%);
+    color: var(--white); /* Texto blanco para que contraste */
     padding: 2rem;
     border-radius: 0.5rem;
 }
@@ -91,6 +98,7 @@ body {
 .landing-logo {
     max-width: 150px;
     margin-bottom: 2rem;
+    filter: brightness(0) invert(1); /* Invertir logo para que sea blanco */
 }
 
 /* --- Authentication Pages --- */
@@ -100,15 +108,17 @@ body {
     align-items: center;
     justify-content: center;
     padding: 1rem;
+    background-color: var(--gray-light);
 }
 
 .auth-card {
-    width: 90%; /* Ocupa el 90% en pantallas pequeñas */
+    width: 90%;
     max-width: 450px;
     border: none;
     border-radius: 0.75rem;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
     overflow: hidden;
+    background-color: var(--white);
 }
 
 .auth-card-header {
@@ -118,7 +128,7 @@ body {
 }
 
 .auth-logo {
-    max-height: 120px; /* Altura máxima del logo como banner */
+    max-height: 120px;
     width: auto;
     margin-bottom: 1rem;
 }
@@ -134,8 +144,8 @@ body {
 }
 
 .form-control:focus {
-    border-color: var(--primary-color);
-    box-shadow: 0 0 0 0.25rem rgba(0, 167, 181, 0.25);
+    border-color: var(--accent-color);
+    box-shadow: 0 0 0 0.25rem rgba(137, 207, 240, 0.5); /* Sombra con el azul claro */
 }
 
 /* --- Validation Messages Styling --- */
@@ -159,7 +169,7 @@ body {
 /* Icono para cada item de la lista */
 .password-validation-help li::before {
     content: '•';
-    color: var(--primary-color);
+    color: var(--primary-color); /* Usar el azul oscuro para los puntos */
     font-weight: bold;
     display: inline-block;
     width: 1em;
@@ -179,18 +189,19 @@ body {
 }
 
 .auth-card-footer a {
-    color: var(--primary-color);
+    color: var(--primary-color); /* Enlaces con el color primario */
     font-weight: 600;
     text-decoration: none;
 }
 
 .auth-card-footer a:hover {
     text-decoration: underline;
+    color: #00264d; /* Más oscuro al pasar el mouse */
 }
 
 /* Responsive adjustments */
 @media (min-width: 576px) {
     .auth-card {
-        width: 100%; /* Ancho normal en pantallas más grandes */
+        width: 100%;
     }
 }
