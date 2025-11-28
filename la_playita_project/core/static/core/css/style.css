@@ -20,7 +20,12 @@
 }
 
 body {
-    background-color: var(--light-bg);
+    /* background-color: var(--light-bg); */ /* Comentado para permitir imagen de fondo */
+    /* background-image: url('../images/background.jpg.jpg'); */ /* Ruta relativa desde el css */
+    /* background-size: cover; */
+    /* background-repeat: no-repeat; */
+    /* background-position: center center; */
+    /* background-attachment: fixed; */
     color: var(--text-color);
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
