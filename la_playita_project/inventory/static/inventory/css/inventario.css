@@ -1,0 +1,18 @@
+/* Estilos para la lista de inventario */
+
+.product-item {
+    border-bottom: 1px solid #eee; /* Separador de línea fina */
+}
+
+.product-item:last-child {
+    border-bottom: none;
+}
+
+.alert-icon {
+    margin-right: 5px;
+    color: #dc3545; /* Rojo de advertencia */
+}
+
+#category-filter {
+    max-width: 200px;
+}

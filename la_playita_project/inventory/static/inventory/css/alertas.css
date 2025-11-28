@@ -1,0 +1,18 @@
+/* Estilos para las Alertas de Stock */
+
+.table-hover tbody tr {
+    border-bottom: 1px solid #dee2e6; /* Separador de línea fina */
+}
+
+.table-danger td {
+    border-color: #f5c6cb;
+}
+
+.alert-icon {
+    margin-right: 8px;
+    color: #dc3545; /* Rojo de advertencia */
+}
+
+#category-filter {
+    max-width: 300px;
+}

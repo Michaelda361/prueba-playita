@@ -1,0 +1,72 @@
+/* Estilos para el Punto de Venta (POS) */
+
+/* Estilos para mejorar la visibilidad de los botones de acción */
+#btn-complete-sale {
+    background-color: #28a745; /* Verde más brillante */
+    border-color: #28a745;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+    transition: all 0.3s ease;
+}
+
+#btn-complete-sale:hover {
+    background-color: #218838; /* Verde más oscuro al pasar el mouse */
+    border-color: #1e7e34;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.2);
+}
+
+.product-item .btn-add-to-cart {
+    background-color: #007bff; /* Azul brillante */
+    color: white;
+    border: none;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    transition: all 0.3s ease;
+}
+
+.product-item .btn-add-to-cart:hover {
+    background-color: #0069d9;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+/* Separador visual entre el carrito y la lista de productos */
+.col-lg-7 {
+    border-right: 1px solid #dee2e6; /* Línea separadora suave */
+}
+
+/* Estilos para el Modo Compacto */
+.compact-mode .product-item {
+    padding: 0.5rem 0.75rem;
+}
+
+.compact-mode .product-item h6 {
+    font-size: 0.9rem;
+    margin-bottom: 0;
+}
+
+.compact-mode .product-item p {
+    font-size: 0.85rem;
+    margin-bottom: 0;
+}
+
+.compact-mode .product-item small {
+    font-size: 0.8rem;
+}
+
+.compact-mode .list-group-item-action {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.compact-mode .product-details {
+    flex-grow: 1;
+}
+
+/* Botón para activar el modo compacto */
+#btn-toggle-compact-mode {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 1050; /* Asegurar que esté sobre otros elementos */
+}

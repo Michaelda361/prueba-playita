@@ -6,6 +6,10 @@
 
 {% block title %}Inventario de Productos{% endblock %}
 
+{% block extra_css %}
+    <link rel="stylesheet" href="{% static 'inventory/css/inventario.css' %}">
+{% endblock %}
+
 {% block content %}
 <div class="container-lg mt-4">
     <div class="row g-3"> <!-- Usar g-3 para espaciado en la fila -->
@@ -22,16 +26,30 @@
                 </div>
                 <div class="card-body d-flex flex-column">
                     <!-- Búsqueda/Filtro -->
-                    <input type="text" id="product-search" class="form-control mb-3" placeholder="Buscar producto...">
+                    <div class="d-flex mb-3">
+                        <input type="text" id="product-search" class="form-control me-2" placeholder="Buscar producto...">
+                        <select id="category-filter" class="form-select">
+                            <option value="all">Categorías</option>
+                            {% for categoria in categorias %}
+                                <option value="{{ categoria.nombre }}">{{ categoria.nombre }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
                     <div class="list-group flex-grow-1" id="product-list" style="overflow-y: auto;">
                         {% for producto in productos %}
                         <!-- Añadido data-stock-min y data-stock-actual para JS de alerta -->
                         <a href="#" class="list-group-item list-group-item-action product-item"
                            data-product-id="{{ producto.pk }}" 
                            data-stock-actual="{{ producto.stock_actual }}"
-                           data-stock-minimo="{{ producto.stock_minimo }}">
+                           data-stock-minimo="{{ producto.stock_minimo }}"
+                           data-category="{{ producto.categoria.nombre }}">
                             <div class="d-flex w-100 justify-content-between align-items-center">
-                                <h6 class="mb-1">{{ producto.nombre }}</h6>
+                                <h6 class="mb-1">
+                                    {% if producto.stock_actual == 0 %}
+                                        <span class="alert-icon">⚠️</span>
+                                    {% endif %}
+                                    {{ producto.nombre }}
+                                </h6>
                                 <!-- El badge será coloreado por JS para alertas visuales -->
                                 <span class="badge rounded-pill bg-secondary stock-badge-{{ producto.pk }}">{{ producto.stock_actual|default:0|intcomma }}</span>
                             </div>
@@ -92,6 +110,7 @@
         const productModal = new bootstrap.Modal(document.getElementById('productModal'));
         const productForm = document.getElementById('productForm');
         const productSearch = document.getElementById('product-search');
+        const categoryFilter = document.getElementById('category-filter');
         const productList = document.getElementById('product-list');
         const nuevaCategoriaModal = new bootstrap.Modal(document.getElementById('nuevaCategoriaModal'));
         const guardarCategoriaBtn = document.getElementById('guardarCategoriaBtn');
@@ -455,13 +474,27 @@
             }
         });
 
-        productSearch.addEventListener('keyup', function() {
-            const filter = productSearch.value.toLowerCase();
+        function filterProducts() {
+            const searchText = productSearch.value.toLowerCase();
+            const selectedCategory = categoryFilter.value;
+
             document.querySelectorAll('#product-list .product-item').forEach(item => {
-                const text = item.textContent.toLowerCase();
-                item.style.display = text.includes(filter) ? '' : 'none';
+                const productName = item.querySelector('h6').textContent.toLowerCase();
+                const productCategory = item.getAttribute('data-category');
+
+                const matchesSearch = productName.includes(searchText);
+                const matchesCategory = selectedCategory === 'all' || selectedCategory === productCategory;
+
+                if (matchesSearch && matchesCategory) {
+                    item.style.display = '';
+                } else {
+                    item.style.display = 'none';
+                }
             });
-        });
+        }
+
+        productSearch.addEventListener('keyup', filterProducts);
+        categoryFilter.addEventListener('change', filterProducts);
 
         const newProductBtn = document.querySelector('[data-bs-target="#productModal"]');
         if(newProductBtn) {

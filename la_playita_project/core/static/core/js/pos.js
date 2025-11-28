@@ -213,4 +213,23 @@ document.addEventListener('DOMContentLoaded', function () {
         }
         return cookieValue;
     }
+
+    // Compact Mode Toggle
+    const toggleCompactModeButton = document.getElementById('btn-toggle-compact-mode');
+    const productListContainer = document.getElementById('product-list');
+
+    toggleCompactModeButton.addEventListener('click', function() {
+        productListContainer.classList.toggle('compact-mode');
+
+        const icon = toggleCompactModeButton.querySelector('i');
+        if (productListContainer.classList.contains('compact-mode')) {
+            icon.classList.remove('fa-compress');
+            icon.classList.add('fa-expand');
+            toggleCompactModeButton.innerHTML = '<i class="fas fa-expand"></i> Modo Normal';
+        } else {
+            icon.classList.remove('fa-expand');
+            icon.classList.add('fa-compress');
+            toggleCompactModeButton.innerHTML = '<i class="fas fa-compress"></i> Modo Compacto';
+        }
+    });
 });

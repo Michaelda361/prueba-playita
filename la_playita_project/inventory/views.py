@@ -24,6 +24,7 @@ from users.decorators import check_user_role
 @check_user_role(allowed_roles=['Administrador', 'Vendedor'])
 def inventario_list(request):
     productos = Producto.objects.select_related('categoria').order_by('nombre')
+    categorias = Categoria.objects.all()
 
     form = ProductoForm()
     categoria_form = CategoriaForm()
@@ -31,6 +32,7 @@ def inventario_list(request):
 
     context = {
         'productos': productos,
+        'categorias': categorias,
         'form': form,
         'categoria_form': categoria_form,
         'lote_form': lote_form,

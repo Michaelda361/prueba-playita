@@ -4,6 +4,10 @@
 
 {% block title %}Punto de Venta (POS){% endblock %}
 
+{% block extra_css %}
+    <link rel="stylesheet" href="{% static 'pos/css/pos.css' %}">
+{% endblock %}
+
 {% block content %}
 <div class="container-fluid mt-4">
     <h2 class="mb-4">
@@ -81,17 +85,22 @@
                     </div>
                     <div id="product-list" class="list-group" style="max-height: 450px; overflow-y: auto;">
                         {% for producto in productos %}
-                            <a href="#" class="list-group-item list-group-item-action product-item" 
+                            <div class="list-group-item list-group-item-action product-item" 
                                data-product-id="{{ producto.id }}"
                                data-product-name="{{ producto.nombre }}"
                                data-product-price="{{ producto.precio_unitario }}"
                                data-product-stock="{{ producto.stock_actual }}">
-                                <div class="d-flex w-100 justify-content-between">
-                                    <h6 class="mb-1">{{ producto.nombre }}</h6>
-                                    <small class="text-muted">Stock: {{ producto.stock_actual }}</small>
+                                <div class="product-details">
+                                    <div class="d-flex w-100 justify-content-between">
+                                        <h6 class="mb-1">{{ producto.nombre }}</h6>
+                                        <small class="text-muted">Stock: {{ producto.stock_actual }}</small>
+                                    </div>
+                                    <p class="mb-1 text-success fw-bold">{{ producto.precio_unitario|currency }}</p>
                                 </div>
-                                <p class="mb-1 text-success fw-bold">{{ producto.precio_unitario|currency }}</p>
-                            </a>
+                                <button class="btn btn-sm btn-add-to-cart">
+                                    <i class="fas fa-plus"></i> Agregar
+                                </button>
+                            </div>
                         {% endfor %}
                     </div>
                 </div>
@@ -99,6 +108,10 @@
         </div>
     </div>
 </div>
+
+<button id="btn-toggle-compact-mode" class="btn btn-secondary">
+    <i class="fas fa-compress"></i> Modo Compacto
+</button>
 
 {% block extra_js %}
     <script src="{% static 'pos/js/pos.js' %}"></script>
