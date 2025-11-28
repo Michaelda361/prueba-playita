@@ -8,11 +8,41 @@
     border-bottom: none;
 }
 
+.product-item.low-stock {
+    background-color: #fff3cd; /* Amarillo suave para bajo stock */
+}
+
+.product-item.out-of-stock {
+    background-color: #f8d7da; /* Rojo suave para sin stock */
+}
+
 .alert-icon {
     margin-right: 5px;
     color: #dc3545; /* Rojo de advertencia */
 }
 
-#category-filter {
-    max-width: 200px;
+#category-filter, #supplier-filter, #stock-level-filter {
+    max-width: 150px;
+}
+
+.stock-bar-container {
+    height: 10px;
+    background-color: #e9ecef;
+    border-radius: .25rem;
+    margin-top: 5px;
+}
+
+.stock-bar {
+    height: 100%;
+    background-color: #28a745; /* Verde por defecto */
+    border-radius: .25rem;
+    transition: width 0.3s ease-in-out;
+}
+
+.stock-bar.low {
+    background-color: #ffc107; /* Amarillo para bajo stock */
+}
+
+.stock-bar.empty {
+    background-color: #dc3545; /* Rojo para sin stock */
 }

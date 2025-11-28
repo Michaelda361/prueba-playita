@@ -12,6 +12,7 @@ from django.utils import timezone
 from django.contrib.auth.decorators import login_required
 
 from .models import Producto, Lote, Categoria, MovimientoInventario
+from suppliers.models import Proveedor
 from .forms import ProductoForm, LoteForm, CategoriaForm
 from users.decorators import check_user_role
 
@@ -25,6 +26,7 @@ from users.decorators import check_user_role
 def inventario_list(request):
     productos = Producto.objects.select_related('categoria').order_by('nombre')
     categorias = Categoria.objects.all()
+    proveedores = Proveedor.objects.all()
 
     form = ProductoForm()
     categoria_form = CategoriaForm()
@@ -33,6 +35,7 @@ def inventario_list(request):
     context = {
         'productos': productos,
         'categorias': categorias,
+        'proveedores': proveedores,
         'form': form,
         'categoria_form': categoria_form,
         'lote_form': lote_form,
