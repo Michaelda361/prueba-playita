@@ -318,6 +318,13 @@ def dashboard_reportes(request):
     # Datos de inventario para accesos rápidos
     total_productos = Producto.objects.count()
     productos_bajos_stock = Producto.objects.filter(stock_actual__lt=F('stock_minimo')).count()
+    productos_agotados = Producto.objects.filter(stock_actual=0).count()
+    
+    # Valor total del inventario
+    from django.db.models import Sum as DbSum
+    valor_inventario = Producto.objects.aggregate(
+        total=DbSum(F('stock_actual') * F('costo_promedio'))
+    )['total'] or Decimal('0')
     
     # Ventas del día
     ventas_hoy = Venta.objects.filter(fecha_venta__gte=hoy_inicio)
@@ -387,6 +394,41 @@ def dashboard_reportes(request):
         cantidad=Count('id')
     ).order_by('-total_compras')[:5]
     
+    # Estadísticas adicionales
+    total_clientes = Cliente.objects.exclude(
+        nombres='Consumidor',
+        apellidos='Final'
+    ).count()
+    
+    # Comparativa con período anterior (30 días vs 60 días)
+    hace_60_dias = ahora - timedelta(days=60)
+    ventas_periodo_anterior = Venta.objects.filter(
+        fecha_venta__gte=hace_60_dias,
+        fecha_venta__lt=hace_30_dias
+    )
+    total_periodo_anterior = ventas_periodo_anterior.aggregate(Sum('total_venta'))['total_venta__sum'] or Decimal('0')
+    
+    # Calcular crecimiento
+    if total_periodo_anterior > 0:
+        crecimiento = ((total_30dias - total_periodo_anterior) / total_periodo_anterior * 100)
+    else:
+        crecimiento = 100 if total_30dias > 0 else 0
+    
+    # Producto más vendido del día
+    producto_dia = VentaDetalle.objects.filter(
+        venta__fecha_venta__gte=hoy_inicio
+    ).values('producto__nombre').annotate(
+        cantidad_total=Sum('cantidad')
+    ).order_by('-cantidad_total').first()
+    
+    # Hora pico de ventas (últimos 7 días)
+    ventas_por_hora_analisis = {}
+    for venta in Venta.objects.filter(fecha_venta__gte=hace_7_dias):
+        hora = venta.fecha_venta.hour
+        ventas_por_hora_analisis[hora] = ventas_por_hora_analisis.get(hora, 0) + 1
+    
+    hora_pico = max(ventas_por_hora_analisis.items(), key=lambda x: x[1])[0] if ventas_por_hora_analisis else 0
+    
     context = {
         'total_hoy': float(total_hoy),
         'cantidad_hoy': cantidad_hoy,
@@ -402,6 +444,12 @@ def dashboard_reportes(request):
         'top_clientes': list(top_clientes),
         'total_productos': total_productos,
         'productos_bajos_stock': productos_bajos_stock,
+        'productos_agotados': productos_agotados,
+        'valor_inventario': float(valor_inventario),
+        'total_clientes': total_clientes,
+        'crecimiento': float(crecimiento),
+        'producto_dia': producto_dia,
+        'hora_pico': hora_pico,
     }
     
     return render(request, 'pos/dashboard_reportes.html', context)
