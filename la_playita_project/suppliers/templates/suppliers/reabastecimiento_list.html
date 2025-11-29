@@ -12,7 +12,7 @@
 {% block content %}
 <div class="container-fluid h-100 p-0">
     <div class="row g-0 h-100">
-        <div class="col-md-7 d-flex flex-column p-3" style="max-height: 100%;">
+        <div class="col-md-7 d-flex flex-column p-3 border-end" style="max-height: 100%;">
             <div class="bg-white border rounded-3 shadow-sm d-flex flex-column flex-grow-1 p-3">
                 <div class="d-flex justify-content-between align-items-center mb-3 flex-shrink-0">
                     <h3 class="text-primary m-0">Historial de reabastecimientos</h3>
@@ -51,7 +51,7 @@
                                 <td class="text-center">
                                     <div class="d-inline-flex align-items-center">
                                         {% if r.estado == 'solicitado' %}
-                                            <span class="badge bg-warning text-dark">{{ r.get_estado_display }}</span>
+                                            <span class="badge bg-orange text-white">{{ r.get_estado_display }}</span>
                                         {% elif r.estado == 'recibido' %}
                                             <span class="badge bg-success">{{ r.get_estado_display }}</span>
                                         {% elif r.estado == 'cancelado' %}
@@ -188,14 +188,17 @@
                                                         <i class="fas fa-plus"></i>
                                                     </button>
                                                 </div>
+                                                <div class="invalid-feedback" id="error-proveedor"></div>
                                             </div>
                                             <div class="col-md-6">
                                                 <label class="form-label fw-bold">{{ form.forma_pago.label }}</label>
                                                 {{ form.forma_pago }}
+                                                <div class="invalid-feedback" id="error-forma_pago"></div>
                                             </div>
                                             <div class="col-12">
                                                 <label class="form-label fw-bold">{{ form.observaciones.label }}</label>
                                                 {{ form.observaciones }}
+                                                <div class="invalid-feedback" id="error-observaciones"></div>
                                             </div>
                                         </div>
                                     </div>
@@ -220,9 +223,9 @@
                                             <tbody>
                                                 {% for f in formset.forms %}
                                                 <tr>
-                                                    <td>{{ f.producto }}</td>
-                                                    <td>{{ f.cantidad }}</td>
-                                                    <td>{{ f.costo_unitario }}</td>
+                                                    <td>{{ f.producto }}<div class="invalid-feedback" id="error-{{ f.prefix }}-producto"></div></td>
+                                                    <td>{{ f.cantidad }}<div class="invalid-feedback" id="error-{{ f.prefix }}-cantidad"></div></td>
+                                                    <td>{{ f.costo_unitario }}<div class="invalid-feedback" id="error-{{ f.prefix }}-costo_unitario"></div></td>
                                                     <td>
                                                         <select name="{{ f.iva.name }}" class="form-select form-select-sm" style="width: 100%; padding: 0.4rem;">
                                                             <option value="0" {% if f.iva.value == '0' or f.iva.value == 0 %}selected{% endif %}>0%</option>
@@ -230,8 +233,9 @@
                                                             <option value="8" {% if f.iva.value == '8' or f.iva.value == 8 %}selected{% endif %}>8%</option>
                                                             <option value="19" {% if f.iva.value == '19' or f.iva.value == 19 %}selected{% endif %}>19%</option>
                                                         </select>
+                                                        <div class="invalid-feedback" id="error-{{ f.prefix }}-iva"></div>
                                                     </td>
-                                                    <td>{{ f.fecha_caducidad }}</td>
+                                                    <td>{{ f.fecha_caducidad }}<div class="invalid-feedback" id="error-{{ f.prefix }}-fecha_caducidad"></div></td>
                                                     <td>
                                                         <span class="d-none">{% if formset.can_delete %}{{ f.DELETE }}{% endif %}</span>
                                                         <button type="button" class="btn btn-sm btn-danger remove-row">
@@ -247,9 +251,9 @@
                                         <tbody id="empty-form-template">
                                             <tr>
                                                 {% with ef=formset.empty_form %}
-                                                <td>{{ ef.producto }}</td>
-                                                <td>{{ ef.cantidad }}</td>
-                                                <td>{{ ef.costo_unitario }}</td>
+                                                <td>{{ ef.producto }}<div class="invalid-feedback" id="error-__prefix__-producto"></div></td>
+                                                <td>{{ ef.cantidad }}<div class="invalid-feedback" id="error-__prefix__-cantidad"></div></td>
+                                                <td>{{ ef.costo_unitario }}<div class="invalid-feedback" id="error-__prefix__-costo_unitario"></div></td>
                                                 <td>
                                                     <select name="{{ ef.iva.name }}" class="form-select form-select-sm" style="width: 100%; padding: 0.4rem;">
                                                         <option value="0">0%</option>
@@ -257,8 +261,9 @@
                                                         <option value="8">8%</option>
                                                         <option value="19">19%</option>
                                                     </select>
+                                                    <div class="invalid-feedback" id="error-__prefix__-iva"></div>
                                                 </td>
-                                                <td>{{ ef.fecha_caducidad }}</td>
+                                                <td>{{ ef.fecha_caducidad }}<div class="invalid-feedback" id="error-__prefix__-fecha_caducidad"></div></td>
                                                 <td>
                                                     <span class="d-none">{% if formset.can_delete %}{{ ef.DELETE }}{% endif %}</span>
                                                     <button type="button" class="btn btn-sm btn-danger remove-row">
@@ -292,6 +297,9 @@
 </div>
 
 <style>
+    .bg-orange {
+        background-color: orange;
+    }
     html, body {
         height: 100%;
         overflow: hidden;
@@ -1247,16 +1255,50 @@ document.addEventListener('DOMContentLoaded', function () {
 
             if (!response.ok) {
                 const errorData = await response.json();
-                let errorMessage = 'Error al guardar el reabastecimiento.';
+                
+                // Limpiar errores previos
+                document.querySelectorAll('.is-invalid').forEach(el => el.classList.remove('is-invalid'));
+                document.querySelectorAll('.invalid-feedback').forEach(el => el.textContent = '');
+
                 if (errorData.errors) {
-                    errorMessage += '\n' + JSON.stringify(errorData.errors, null, 2);
+                    for (const [field, errors] of Object.entries(JSON.parse(errorData.errors))) {
+                        const input = document.querySelector(`[name$="${field}"]`);
+                        if (input) {
+                            input.classList.add('is-invalid');
+                            const errorDiv = document.getElementById(`error-${field}`);
+                            if(errorDiv){
+                                errorDiv.textContent = errors[0].message;
+                            }
+                        }
+                    }
                 }
                 if (errorData.formset_errors) {
-                    errorMessage += '\n' + JSON.stringify(errorData.formset_errors, null, 2);
+                    errorData.formset_errors.forEach((formErrorsStr, index) => {
+                        const formErrors = JSON.parse(formErrorsStr);
+                        for (const [field, errors] of Object.entries(formErrors)) {
+                             const input = document.querySelector(`[name$="${FORMSET_PREFIX}-${index}-${field}"]`);
+                             if (input) {
+                                input.classList.add('is-invalid');
+                                const errorDiv = document.getElementById(`error-${FORMSET_PREFIX}-${index}-${field}`);
+                                if(errorDiv){
+                                    errorDiv.textContent = errors[0].message;
+                                }
+                             }
+                        }
+                    });
                 }
+
+                let errorMessage = 'Por favor, corrija los errores en el formulario.';
                 if (errorData.error) {
                     errorMessage = errorData.error;
                 }
+                
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error de Validación',
+                    text: errorMessage
+                });
+
                 throw new Error(errorMessage);
             }
 
