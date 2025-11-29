@@ -2,7 +2,7 @@ from django.shortcuts import render, get_object_or_404
 from decimal import Decimal
 import json
 from django.db import transaction
-from django.db.models import Sum, F
+from django.db.models import Sum, F, Count, Avg
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse, HttpResponse
 from django.views.decorators.http import require_POST
@@ -14,8 +14,10 @@ from .models import Venta, VentaDetalle, Pago
 from .forms import ProductoSearchForm, VentaForm
 from users.decorators import check_user_role
 from django.core.mail import EmailMessage
-from datetime import datetime
+from datetime import datetime, timedelta
 from django.views.decorators.csrf import csrf_exempt
+from django.utils import timezone
+from django.db.models.functions import TruncDate
 
 # Constante: 5.5 puntos por cada $66,000 pesos
 PUNTOS_POR_COMPRA = Decimal('5.5')
@@ -298,3 +300,179 @@ def crear_cliente(request):
         except Exception as e:
             return JsonResponse({'success': False, 'error': str(e)}, status=400)
     return JsonResponse({'success': False, 'error': 'Método no permitido'}, status=405)
+
+
+# ==================== DASHBOARD DE REPORTES ====================
+
+@login_required
+@check_user_role(allowed_roles=['Administrador', 'Vendedor'])
+def dashboard_reportes(request):
+    """Dashboard principal con métricas y KPIs de ventas"""
+    from django.db.models import F
+    
+    ahora = timezone.now()
+    hoy_inicio = ahora.replace(hour=0, minute=0, second=0, microsecond=0)
+    hace_7_dias = ahora - timedelta(days=7)
+    hace_30_dias = ahora - timedelta(days=30)
+    
+    # Datos de inventario para accesos rápidos
+    total_productos = Producto.objects.count()
+    productos_bajos_stock = Producto.objects.filter(stock_actual__lt=F('stock_minimo')).count()
+    
+    # Ventas del día
+    ventas_hoy = Venta.objects.filter(fecha_venta__gte=hoy_inicio)
+    total_hoy = ventas_hoy.aggregate(Sum('total_venta'))['total_venta__sum'] or Decimal('0')
+    cantidad_hoy = ventas_hoy.count()
+    
+    # Ventas últimos 7 días
+    ventas_7dias = Venta.objects.filter(fecha_venta__gte=hace_7_dias)
+    total_7dias = ventas_7dias.aggregate(Sum('total_venta'))['total_venta__sum'] or Decimal('0')
+    cantidad_7dias = ventas_7dias.count()
+    
+    # Ventas últimos 30 días
+    ventas_30dias = Venta.objects.filter(fecha_venta__gte=hace_30_dias)
+    total_30dias = ventas_30dias.aggregate(Sum('total_venta'))['total_venta__sum'] or Decimal('0')
+    cantidad_30dias = ventas_30dias.count()
+    
+    # Ticket promedio
+    ticket_promedio = total_30dias / cantidad_30dias if cantidad_30dias > 0 else Decimal('0')
+    
+    # Métodos de pago (últimos 30 días)
+    metodos_pago = Pago.objects.filter(
+        venta__fecha_venta__gte=hace_30_dias
+    ).values('metodo_pago').annotate(
+        total=Sum('monto'),
+        cantidad=Count('id')
+    ).order_by('-total')
+    
+    # Canales de venta (últimos 30 días)
+    canales_venta = Venta.objects.filter(
+        fecha_venta__gte=hace_30_dias
+    ).values('canal_venta').annotate(
+        total=Sum('total_venta'),
+        cantidad=Count('id')
+    ).order_by('-total')
+    
+    # Top 5 productos más vendidos (últimos 30 días)
+    top_productos = VentaDetalle.objects.filter(
+        venta__fecha_venta__gte=hace_30_dias
+    ).values('producto__nombre').annotate(
+        cantidad_total=Sum('cantidad'),
+        ingresos=Sum('subtotal')
+    ).order_by('-cantidad_total')[:5]
+    
+    # Top 5 vendedores (últimos 30 días)
+    top_vendedores = Venta.objects.filter(
+        fecha_venta__gte=hace_30_dias
+    ).values(
+        'usuario__first_name', 
+        'usuario__last_name',
+        'usuario__username'
+    ).annotate(
+        total_ventas=Sum('total_venta'),
+        cantidad=Count('id')
+    ).order_by('-total_ventas')[:5]
+    
+    # Top 5 clientes (últimos 30 días)
+    top_clientes = Venta.objects.filter(
+        fecha_venta__gte=hace_30_dias
+    ).exclude(
+        cliente__nombres='Consumidor',
+        cliente__apellidos='Final'
+    ).values(
+        'cliente__nombres',
+        'cliente__apellidos'
+    ).annotate(
+        total_compras=Sum('total_venta'),
+        cantidad=Count('id')
+    ).order_by('-total_compras')[:5]
+    
+    context = {
+        'total_hoy': float(total_hoy),
+        'cantidad_hoy': cantidad_hoy,
+        'total_7dias': float(total_7dias),
+        'cantidad_7dias': cantidad_7dias,
+        'total_30dias': float(total_30dias),
+        'cantidad_30dias': cantidad_30dias,
+        'ticket_promedio': float(ticket_promedio),
+        'metodos_pago': list(metodos_pago),
+        'canales_venta': list(canales_venta),
+        'top_productos': list(top_productos),
+        'top_vendedores': list(top_vendedores),
+        'top_clientes': list(top_clientes),
+        'total_productos': total_productos,
+        'productos_bajos_stock': productos_bajos_stock,
+    }
+    
+    return render(request, 'pos/dashboard_reportes.html', context)
+
+
+@login_required
+def api_ventas_por_fecha(request):
+    """API para gráfico de ventas por fecha (últimos 30 días)"""
+    dias = int(request.GET.get('dias', 30))
+    fecha_inicio = timezone.now() - timedelta(days=dias)
+    
+    ventas_por_fecha = Venta.objects.filter(
+        fecha_venta__gte=fecha_inicio
+    ).annotate(
+        fecha=TruncDate('fecha_venta')
+    ).values('fecha').annotate(
+        total=Sum('total_venta'),
+        cantidad=Count('id')
+    ).order_by('fecha')
+    
+    datos = {
+        'fechas': [v['fecha'].strftime('%Y-%m-%d') for v in ventas_por_fecha],
+        'totales': [float(v['total']) for v in ventas_por_fecha],
+        'cantidades': [v['cantidad'] for v in ventas_por_fecha],
+    }
+    
+    return JsonResponse(datos)
+
+
+@login_required
+def api_comparativa_metodos_pago(request):
+    """API para comparativa de métodos de pago"""
+    dias = int(request.GET.get('dias', 30))
+    fecha_inicio = timezone.now() - timedelta(days=dias)
+    
+    datos = Pago.objects.filter(
+        venta__fecha_venta__gte=fecha_inicio
+    ).values('metodo_pago').annotate(
+        total=Sum('monto'),
+        cantidad=Count('id')
+    ).order_by('-total')
+    
+    return JsonResponse({
+        'metodos': [d['metodo_pago'] for d in datos],
+        'totales': [float(d['total']) for d in datos],
+        'cantidades': [d['cantidad'] for d in datos],
+    })
+
+
+@login_required
+def api_ventas_por_hora(request):
+    """API para análisis de ventas por hora del día"""
+    dias = int(request.GET.get('dias', 7))
+    fecha_inicio = timezone.now() - timedelta(days=dias)
+    
+    ventas = Venta.objects.filter(fecha_venta__gte=fecha_inicio)
+    
+    # Agrupar por hora
+    ventas_por_hora = {}
+    for venta in ventas:
+        hora = venta.fecha_venta.hour
+        if hora not in ventas_por_hora:
+            ventas_por_hora[hora] = {'cantidad': 0, 'total': 0}
+        ventas_por_hora[hora]['cantidad'] += 1
+        ventas_por_hora[hora]['total'] += float(venta.total_venta)
+    
+    # Ordenar por hora
+    horas = sorted(ventas_por_hora.keys())
+    
+    return JsonResponse({
+        'horas': [f"{h:02d}:00" for h in horas],
+        'cantidades': [ventas_por_hora[h]['cantidad'] for h in horas],
+        'totales': [ventas_por_hora[h]['total'] for h in horas],
+    })

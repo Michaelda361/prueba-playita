@@ -19,7 +19,10 @@ urlpatterns = [
     path('venta/<int:venta_id>/descargar/', views.descargar_factura, name='descargar_factura'),
     path('venta/<int:venta_id>/enviar-factura/', views.enviar_factura, name='enviar_factura'),
     path('api/crear-cliente/', views.crear_cliente, name='crear_cliente'),
-
-
-
+    
+    # Dashboard de Reportes
+    path('dashboard/', views.dashboard_reportes, name='dashboard_reportes'),
+    path('api/ventas-por-fecha/', views.api_ventas_por_fecha, name='api_ventas_por_fecha'),
+    path('api/comparativa-metodos-pago/', views.api_comparativa_metodos_pago, name='api_comparativa_metodos_pago'),
+    path('api/ventas-por-hora/', views.api_ventas_por_hora, name='api_ventas_por_hora'),
 ]

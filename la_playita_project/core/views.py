@@ -17,20 +17,8 @@ def landing_view(request):
 @login_required
 @check_user_role(allowed_roles=['Administrador', 'Vendedor'])
 def dashboard_view(request):
-    productos_count = Producto.objects.count()
-    productos_bajos_stock = Producto.objects.filter(stock_actual__lt=models.F('stock_minimo')).count()
-
-    # Contadores útiles para el dashboard
-    reabastecimientos_count = Reabastecimiento.objects.count()
-    proveedores_count = Proveedor.objects.count()
-
-    context = {
-        'total_productos': productos_count,
-        'productos_bajos_stock': productos_bajos_stock,
-        'reabastecimientos_count': reabastecimientos_count,
-        'proveedores_count': proveedores_count,
-    }
-    return render(request, 'core/dashboard.html', context)
+    # Redirigir al dashboard de reportes del POS
+    return redirect('pos:dashboard_reportes')
 
 
 @never_cache
