@@ -342,37 +342,13 @@ def reabastecimiento_list(request):
 def reabastecimiento_create(request):
     """
     Crear un reabastecimiento con múltiples detalles en una página dedicada.
+    Optimizado para velocidad y cero fricción.
     """
     if request.method == 'POST':
-        # Debug: escribir que se recibió POST
-        try:
-            with open('email_debug.log', 'a', encoding='utf-8') as f:
-                f.write(f"\n[{datetime.now()}] POST recibido en reabastecimiento_create\n")
-                f.write(f"[{datetime.now()}] POST data: {request.POST.keys()}\n")
-        except Exception as debug_error:
-            print(f"Error escribiendo debug log: {debug_error}")
-        
         form = ReabastecimientoForm(request.POST)
         formset = ReabastecimientoDetalleFormSet(request.POST)
         
-        # Debug: verificar si el formulario es válido
-        try:
-            with open('email_debug.log', 'a', encoding='utf-8') as f:
-                if not form.is_valid():
-                    f.write(f"[{datetime.now()}] Formulario NO válido: {form.errors}\n")
-                else:
-                    f.write(f"[{datetime.now()}] Formulario válido\n")
-                
-                if not formset.is_valid():
-                    f.write(f"[{datetime.now()}] Formset NO válido: {formset.errors}\n")
-                else:
-                    f.write(f"[{datetime.now()}] Formset válido\n")
-        except Exception as debug_error:
-            print(f"Error escribiendo debug log: {debug_error}")
-        
         if form.is_valid() and formset.is_valid():
-            with open('email_debug.log', 'a', encoding='utf-8') as f:
-                f.write(f"[{datetime.now()}] Formulario y formset válidos\n")
             try:
                 with transaction.atomic():
                     logger.info("[REAB] Iniciando creación de reabastecimiento")
@@ -381,8 +357,8 @@ def reabastecimiento_create(request):
                     
                     total_costo = 0
                     total_iva = 0
-                    
                     detalles_a_crear = []
+                    
                     for detalle_form in formset.cleaned_data:
                         if detalle_form and not detalle_form.get('DELETE'):
                             cantidad = detalle_form['cantidad']
@@ -390,82 +366,61 @@ def reabastecimiento_create(request):
                             producto = detalle_form['producto']
                             
                             subtotal = cantidad * costo_unitario
-                            
-                            # Usar la tasa de IVA del producto
                             iva_porcentaje = producto.tasa_iva.porcentaje
                             iva_detalle = subtotal * (iva_porcentaje / 100)
                             
                             total_costo += subtotal
                             total_iva += iva_detalle
-                            
                             detalle_form['iva'] = iva_detalle
                             detalles_a_crear.append(detalle_form)
 
                     if not detalles_a_crear:
-                        logger.warning("[REAB] No hay detalles para crear")
-                        pass
+                        form.add_error(None, "Agrega al menos un producto")
+                        raise ValueError("No hay detalles para crear")
 
                     reab.costo_total = total_costo
                     reab.iva = total_iva
                     reab.save()
                     logger.info(f"[REAB] Reabastecimiento guardado: ID {reab.id}")
 
-                    # Guardar los detalles
                     for detalle_form_data in detalles_a_crear:
                         detalle_form_data.pop('DELETE', None)
                         ReabastecimientoDetalle.objects.create(reabastecimiento=reab, **detalle_form_data)
                     logger.info(f"[REAB] Detalles guardados: {len(detalles_a_crear)}")
 
-                    # Enviar correo si aplica
                     if reab.estado == Reabastecimiento.ESTADO_SOLICITADO:
-                        # Escribir en archivo de log
-                        with open('email_debug.log', 'a', encoding='utf-8') as f:
-                            f.write(f"\n[{datetime.now()}] Intentando enviar correo para reabastecimiento {reab.id}\n")
-                        
-                        print(f"[PRINT] Intentando enviar correo para reabastecimiento {reab.id}")
-                        logger.info(f"[REAB] Intentando enviar correo para reabastecimiento {reab.id}")
+                        logger.info(f"[REAB] Enviando correo para reabastecimiento {reab.id}")
                         try:
-                            with open('email_debug.log', 'a', encoding='utf-8') as f:
-                                f.write(f"[{datetime.now()}] Llamando a send_supply_request_email\n")
-                            
-                            print(f"[PRINT] Llamando a send_supply_request_email")
-                            result = send_supply_request_email(reab, request)
-                            
-                            with open('email_debug.log', 'a', encoding='utf-8') as f:
-                                f.write(f"[{datetime.now()}] Resultado del envío de correo: {result}\n")
-                            
-                            print(f"[PRINT] Resultado del envío de correo: {result}")
-                            logger.info(f"[REAB] Resultado del envío de correo: {result}")
+                            send_supply_request_email(reab, request)
                         except Exception as email_error:
-                            with open('email_debug.log', 'a', encoding='utf-8') as f:
-                                f.write(f"[{datetime.now()}] Error al enviar correo: {email_error}\n")
-                                import traceback
-                                f.write(traceback.format_exc())
-                            
-                            print(f"[PRINT] Error al enviar correo: {email_error}")
                             logger.error(f"[REAB] Error al enviar correo: {email_error}", exc_info=True)
                     
                     logger.info("[REAB] Reabastecimiento creado exitosamente")
-                    # Redirigir a la lista tras el éxito
                     return redirect('suppliers:reabastecimiento_list')
 
             except Exception as e:
                 logger.error(f"[REAB] Error al crear reabastecimiento: {e}", exc_info=True)
-                form.add_error(None, f"Error inesperado al guardar: {e}")
+                form.add_error(None, f"Error inesperado: {e}")
         
     else:
         form = ReabastecimientoForm(initial_creation=True)
         formset = ReabastecimientoDetalleFormSet(queryset=ReabastecimientoDetalle.objects.none())
 
-    # Contexto para GET y para POST con errores
-    all_products_data = list(Producto.objects.values('id', 'nombre', 'precio_unitario'))
-    categorias = Categoria.objects.all()
-
+    all_products_data = list(Producto.objects.values('id', 'nombre', 'precio_unitario', 'tasa_iva__porcentaje'))
+    recent_suppliers = Proveedor.objects.filter(
+        reabastecimiento__isnull=False
+    ).distinct().order_by('-reabastecimiento__fecha')[:5]
+    
+    # Obtener todas las tasas de IVA de la base de datos
+    tasas_iva_queryset = TasaIVA.objects.all().order_by('porcentaje')
+    tasas_iva_list = [{'porcentaje': int(t.porcentaje) if t.porcentaje == int(t.porcentaje) else t.porcentaje, 'nombre': t.nombre} for t in tasas_iva_queryset]
+    
     context = {
         'form': form,
         'formset': formset,
         'all_products_json': json.dumps(all_products_data, cls=DjangoJSONEncoder),
-        'categorias': categorias,
+        'tasas_iva_json': json.dumps(tasas_iva_list, cls=DjangoJSONEncoder),
+        'recent_suppliers': recent_suppliers,
         'search_suppliers_url': reverse('suppliers:search_suppliers_ajax'),
         'search_products_url': reverse('suppliers:search_products_ajax'),
     }

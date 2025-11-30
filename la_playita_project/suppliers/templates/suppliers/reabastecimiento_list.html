@@ -25,293 +25,291 @@
      data-proveedores-search-url="{% url 'suppliers:api_search_proveedores' %}"
      data-productos-search-url="{% url 'suppliers:api_search_productos' %}">
 
-    <!-- Sticky Header -->
-    <div class="sticky-header bg-white border-bottom shadow-sm mb-4" style="position: sticky; top: 0; z-index: 50; margin: -1rem -1rem 1rem -1rem; padding: 1rem;">
-        <div class="d-flex justify-content-between align-items-center">
-            <div>
-                <h2 class="text-primary fw-bold mb-2">Órdenes de Reabastecimiento</h2>
-                <div class="d-flex gap-3 flex-wrap">
-                    <div class="d-flex align-items-center gap-2">
-                        <span class="badge bg-warning text-dark" style="font-size: 0.9rem; padding: 0.5rem 0.75rem;">
-                            <i class="fas fa-hourglass-half me-1"></i>
-                            <span id="count-solicitado">0</span>
-                        </span>
-                        <small class="text-muted">Solicitadas</small>
-                    </div>
-                    <div class="d-flex align-items-center gap-2">
-                        <span class="badge bg-success" style="font-size: 0.9rem; padding: 0.5rem 0.75rem;">
-                            <i class="fas fa-check-circle me-1"></i>
-                            <span id="count-recibido">0</span>
-                        </span>
-                        <small class="text-muted">Recibidas</small>
-                    </div>
-                    <div class="d-flex align-items-center gap-2">
-                        <span class="badge bg-danger" style="font-size: 0.9rem; padding: 0.5rem 0.75rem;">
-                            <i class="fas fa-ban me-1"></i>
-                            <span id="count-cancelado">0</span>
-                        </span>
-                        <small class="text-muted">Canceladas</small>
-                    </div>
-                </div>
+    <!-- Header Mejorado -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="text-primary fw-bold mb-0">
+                <i class="fas fa-boxes me-2"></i>Órdenes de Reabastecimiento
+            </h2>
+            <small class="text-muted">Gestiona tus órdenes de compra y recepción de mercancía</small>
+        </div>
+        <a href="{% url 'suppliers:reabastecimiento_create' %}" class="btn btn-primary btn-lg shadow-sm">
+            <i class="fas fa-plus me-2"></i>Nueva Orden
+        </a>
+    </div>
+
+    <!-- Tabs de Navegación -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-body p-0 border-bottom">
+            <div class="d-flex" style="border-bottom: 1px solid #dee2e6;">
+                <button class="tab-btn active" data-tab="pendientes">
+                    <i class="fas fa-hourglass-half me-2"></i>
+                    Pendientes
+                    <span class="badge bg-warning text-dark ms-2" id="count-pendientes">0</span>
+                </button>
+                <button class="tab-btn" data-tab="historial">
+                    <i class="fas fa-history me-2"></i>
+                    Historial
+                    <span class="badge bg-secondary ms-2" id="count-historial">0</span>
+                </button>
             </div>
-            <a href="{% url 'suppliers:reabastecimiento_create' %}" class="btn btn-primary btn-lg shadow-sm" style="white-space: nowrap;">
-                <i class="fas fa-plus me-2"></i>Nueva Orden
-            </a>
         </div>
     </div>
 
-    <!-- Búsqueda Global -->
-    <div class="card shadow-sm mb-4 bg-light">
-        <div class="card-body">
-            <div class="input-group input-group-lg">
-                <span class="input-group-text bg-white border-end-0">
-                    <i class="fas fa-search text-muted"></i>
-                </span>
-                <input type="text" 
-                       id="global_search" 
-                       class="form-control form-control-lg border-start-0" 
-                       placeholder="Buscar por ID orden, proveedor o producto..."
-                       autocomplete="off"
-                       aria-label="Búsqueda global">
-            </div>
-            <small class="text-muted d-block mt-2">
-                <i class="fas fa-info-circle me-1"></i>
-                Busca en tiempo real: ID de orden, nombre de proveedor o producto
-            </small>
-        </div>
-    </div>
-
-    <!-- Filtros Avanzados -->
+    <!-- Búsqueda Unificada -->
     <div class="card shadow-sm mb-4">
         <div class="card-body">
-            <form class="row g-2" id="filterForm">
-                <div class="col-md-3">
-                    <label for="filter_proveedor" class="form-label small">Proveedor</label>
+            <div class="search-bar">
+                <div class="input-group input-group-lg">
+                    <span class="input-group-text bg-white border-end-0">
+                        <i class="fas fa-search text-muted"></i>
+                    </span>
                     <input type="text" 
-                           name="proveedor_search" 
-                           id="filter_proveedor" 
-                           class="form-control form-control-sm"
-                           placeholder="Buscar..."
+                           id="global_search" 
+                           class="form-control form-control-lg border-start-0" 
+                           placeholder="Buscar por ID, proveedor o producto..."
                            autocomplete="off"
-                           aria-label="Buscar proveedor">
-                    <input type="hidden" name="proveedor_id" id="filter_proveedor_id" value="{{ request.GET.proveedor_id }}">
-                    <div id="proveedor_suggestions" class="list-group position-absolute mt-1" style="display: none; width: 100%; z-index: 1000;"></div>
-                </div>
-                
-                <div class="col-md-2">
-                    <label for="filter_estado" class="form-label small">Estado</label>
-                    <select name="estado" id="filter_estado" class="form-select form-select-sm" aria-label="Filtrar por estado">
-                        <option value="" {% if not request.GET.estado %}selected{% endif %}>Todos</option>
-                        <option value="solicitado" {% if request.GET.estado == 'solicitado' %}selected{% endif %}>Solicitado</option>
-                        <option value="recibido" {% if request.GET.estado == 'recibido' %}selected{% endif %}>Recibido</option>
-                        <option value="cancelado" {% if request.GET.estado == 'cancelado' %}selected{% endif %}>Cancelado</option>
-                    </select>
-                </div>
-                
-                <div class="col-md-2">
-                    <label for="fecha_desde" class="form-label small">Desde</label>
-                    <input type="date" name="fecha_desde" id="fecha_desde" class="form-control form-control-sm" value="{{ request.GET.fecha_desde }}" aria-label="Fecha desde">
-                </div>
-                
-                <div class="col-md-2">
-                    <label for="fecha_hasta" class="form-label small">Hasta</label>
-                    <input type="date" name="fecha_hasta" id="fecha_hasta" class="form-control form-control-sm" value="{{ request.GET.fecha_hasta }}" aria-label="Fecha hasta">
-                </div>
-
-                <div class="col-md-3 d-flex gap-2 align-items-end">
-                    <button class="btn btn-primary btn-sm flex-grow-1" type="submit" aria-label="Aplicar filtros">
-                        <i class="fas fa-search me-1"></i> Buscar
-                    </button>
-                    <a href="{% url 'suppliers:reabastecimiento_list' %}" class="btn btn-outline-secondary btn-sm" aria-label="Limpiar filtros">
-                        <i class="fas fa-times me-1"></i> Limpiar
-                    </a>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <!-- Tabla de Reabastecimientos -->
-    <div class="card shadow-sm">
-        <div class="card-body p-0">
-            <div class="table-responsive">
-                <table class="table table-hover table-striped align-middle mb-0" role="grid" aria-label="Tabla de órdenes de reabastecimiento">
-                    <thead class="table-light sticky-top" style="background-color: #f8f9fa; border-bottom: 2px solid #dee2e6; top: 0; z-index: 10;">
-                        <tr role="row">
-                            <th style="width: 30%; font-weight: 700; color: #212529;" role="columnheader">Proveedor</th>
-                            <th class="text-center" style="width: 15%; font-weight: 700; color: #212529;" role="columnheader">Estado</th>
-                            <th class="text-center" style="width: 20%; font-weight: 700; color: #212529;" role="columnheader">Progreso</th>
-                            <th class="text-center" style="width: 15%; font-weight: 700; color: #212529;" role="columnheader">Costo</th>
-                            <th class="text-center" style="width: 20%; font-weight: 700; color: #212529;" role="columnheader">Acciones</th>
-                        </tr>
-                    </thead>
-                    <tbody id="reabastecimiento-list-body">
-                        {% for r in reabastecimientos %}
-                            {% include 'suppliers/partials/reabastecimiento_row.html' %}
-                        {% empty %}
-                        <tr>
-                            <td colspan="5" class="text-center p-4">
-                                <h5 class="text-muted">No hay órdenes de reabastecimiento</h5>
-                                <p class="text-muted mb-0">¡Crea una nueva orden para empezar!</p>
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-
-            {# Pagination #}
-            {% if page_obj.has_other_pages %}
-            <nav aria-label="Paginación" class="mt-3 p-3 border-top">
-                <ul class="pagination justify-content-center flex-wrap mb-0">
-                    {% if page_obj.has_previous %}
-                        <li class="page-item"><a class="page-link" href="?page={{ page_obj.previous_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">&laquo; Anterior</a></li>
-                    {% else %}
-                        <li class="page-item disabled"><span class="page-link">&laquo; Anterior</span></li>
-                    {% endif %}
-
-                    {% for i in page_obj.paginator.page_range %}
-                        {% if page_obj.number == i %}
-                            <li class="page-item active"><span class="page-link">{{ i }} <span class="sr-only">(actual)</span></span></li>
-                        {% else %}
-                            <li class="page-item"><a class="page-link" href="?page={{ i }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">{{ i }}</a></li>
-                        {% endif %}
-                    {% endfor %}
-
-                    {% if page_obj.has_next %}
-                        <li class="page-item"><a class="page-link" href="?page={{ page_obj.next_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">Siguiente &raquo;</a></li>
-                    {% else %}
-                        <li class="page-item disabled"><span class="page-link">Siguiente &raquo;</span></li>
-                    {% endif %}
-                </ul>
-            </nav>
-            {% endif %}
-        </div>
-    </div>
-</div>
-
-<!-- Drawer: Recibir Orden (Lateral) -->
-<div class="offcanvas offcanvas-end reception-drawer" id="receptionDrawer" tabindex="-1" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
-    <div class="offcanvas-header border-bottom">
-        <div class="flex-grow-1">
-            <h5 class="offcanvas-title">
-                <i class="fas fa-truck-loading text-success me-2"></i>
-                Recibir Orden #<span id="receptionOrderId" class="fw-bold text-primary" aria-live="polite"></span>
-            </h5>
-            <small class="text-muted d-block mt-2">
-                <i class="fas fa-building me-1"></i>
-                <span id="receptionProveedorName" aria-live="polite">Cargando...</span>
-            </small>
-        </div>
-        <button type="button" class="btn-close" id="closeReceptionDrawer" aria-label="Cerrar (Esc)"></button>
-    </div>
-
-    <div class="offcanvas-body p-0 d-flex flex-column">
-        <!-- Quick Actions Bar -->
-        <div class="p-3 border-bottom bg-light sticky-top" style="z-index: 40;">
-            <div class="d-flex flex-column gap-2">
-                <div class="d-flex gap-2">
-                    <button type="button" class="btn btn-sm btn-success flex-grow-1" id="markAllReceivedBtn" title="Llenar con cantidad solicitada">
-                        <i class="fas fa-check-double me-1"></i> Marcar todo
-                    </button>
-                    <button type="button" class="btn btn-sm btn-outline-secondary" id="saveDraftBtn" title="Guardar borrador">
-                        <i class="fas fa-save me-1"></i> Borrador
-                    </button>
-                </div>
-                <div class="input-group input-group-sm">
-                    <input type="text" class="form-control form-control-sm" id="searchProductInput" placeholder="Buscar producto..." autocomplete="off" aria-label="Buscar producto">
-                    <button class="btn btn-outline-secondary btn-sm" type="button" id="clearSearchBtn" title="Limpiar búsqueda">
+                           aria-label="Búsqueda global">
+                    <button type="button" class="search-clear-btn" id="clearSearchBtn" style="display: none;">
                         <i class="fas fa-times"></i>
                     </button>
                 </div>
-                <div class="input-group input-group-sm">
-                    <span class="input-group-text bg-white">
-                        <i class="fas fa-calendar-alt text-muted"></i>
-                    </span>
-                    <input type="date" class="form-control form-control-sm" id="generalExpiryDate" title="Aplicar fecha a todos">
-                    <button class="btn btn-outline-secondary btn-sm" type="button" id="applyGeneralExpiryBtn" title="Aplicar fecha de caducidad a todos">
-                        Aplicar
-                    </button>
-                </div>
+            </div>
+            <div class="mt-2">
+                <button type="button" class="btn btn-sm btn-outline-secondary" id="toggleFiltersBtn">
+                    <i class="fas fa-sliders-h me-1"></i>Filtros Avanzados
+                </button>
             </div>
         </div>
+    </div>
 
-        <!-- Reception Table -->
-        <form id="receptionForm" class="flex-grow-1 d-flex flex-column">
-            <div class="table-responsive flex-grow-1" style="overflow-y: auto;">
-                <table class="table table-sm table-hover mb-0 reception-table" role="grid" aria-label="Tabla de recepción de mercancía">
-                    <thead class="table-light sticky-top" style="top: 0; z-index: 10;">
-                        <tr role="row">
-                            <th style="width: 35%;" role="columnheader">Producto</th>
-                            <th class="text-center" style="width: 12%;" role="columnheader">Solicitado</th>
-                            <th class="text-center" style="width: 15%;" role="columnheader">Recibido</th>
-                            <th class="text-center" style="width: 12%;" role="columnheader">Caducidad</th>
-                            <th class="text-center" style="width: 12%;" role="columnheader">Lote</th>
-                            <th class="text-center" style="width: 14%;" role="columnheader">Estado</th>
-                        </tr>
-                    </thead>
-                    <tbody id="receptionTableBody">
-                        {# Rows will be populated by JavaScript #}
-                    </tbody>
-                </table>
+    <!-- Filtros Avanzados (Colapsable) -->
+    <div class="filter-collapse" id="filtersCollapse">
+        <div class="card shadow-sm mb-4">
+            <div class="card-body">
+                <form class="row g-2" id="filterForm">
+                    <div class="col-md-3">
+                        <label for="filter_proveedor" class="form-label small">Proveedor</label>
+                        <input type="text" 
+                               name="proveedor_search" 
+                               id="filter_proveedor" 
+                               class="form-control form-control-sm"
+                               placeholder="Buscar..."
+                               autocomplete="off"
+                               aria-label="Buscar proveedor">
+                        <input type="hidden" name="proveedor_id" id="filter_proveedor_id" value="{{ request.GET.proveedor_id }}">
+                        <div id="proveedor_suggestions" class="list-group position-absolute mt-1" style="display: none; width: 100%; z-index: 1000;"></div>
+                    </div>
+                    
+                    <div class="col-md-2">
+                        <label for="fecha_desde" class="form-label small">Desde</label>
+                        <input type="date" name="fecha_desde" id="fecha_desde" class="form-control form-control-sm" value="{{ request.GET.fecha_desde }}" aria-label="Fecha desde">
+                    </div>
+                    
+                    <div class="col-md-2">
+                        <label for="fecha_hasta" class="form-label small">Hasta</label>
+                        <input type="date" name="fecha_hasta" id="fecha_hasta" class="form-control form-control-sm" value="{{ request.GET.fecha_hasta }}" aria-label="Fecha hasta">
+                    </div>
+
+                    <div class="col-md-5 d-flex gap-2 align-items-end">
+                        <button class="btn btn-primary btn-sm flex-grow-1" type="submit" aria-label="Aplicar filtros">
+                            <i class="fas fa-search me-1"></i> Buscar
+                        </button>
+                        <a href="{% url 'suppliers:reabastecimiento_list' %}" class="btn btn-outline-secondary btn-sm" aria-label="Limpiar filtros">
+                            <i class="fas fa-times me-1"></i> Limpiar
+                        </a>
+                    </div>
+                </form>
             </div>
+        </div>
+    </div>
 
-            <!-- Sticky Action Bar (Bottom) -->
-            <div class="sticky-bottom border-top bg-white p-3" style="z-index: 40;">
-                <!-- Progress Bar -->
-                <div class="mb-3">
-                    <div class="d-flex justify-content-between align-items-center mb-2">
-                        <small class="fw-bold text-muted">Progreso</small>
-                        <small class="text-muted" id="progressText" aria-live="polite">0 de 0</small>
-                    </div>
-                    <div class="progress" style="height: 6px;">
-                        <div class="progress-bar bg-success" id="progressBar" role="progressbar" style="width: 0%;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
-                    </div>
-                </div>
+    <!-- Contenedor de datos oculto para el JS -->
+    <div style="display: none;" id="data-container">
+        {% for r in reabastecimientos %}
+            <div data-reabastecimiento-id="{{ r.id }}" 
+                 data-estado="{{ r.estado }}"
+                 data-proveedor="{{ r.proveedor.nombre_empresa }}"
+                 data-fecha="{{ r.fecha|date:'d/m/Y H:i' }}"
+                 data-costo="{{ r.costo_total|default:0 }}"
+                 data-product-count="{{ r.reabastecimientodetalle_set.count }}">
+            </div>
+        {% endfor %}
+    </div>
 
-                <!-- Summary Stats (Compact) -->
-                <div class="row g-2 mb-3">
-                    <div class="col-4">
-                        <div class="p-2 bg-success bg-opacity-10 rounded text-center">
-                            <small class="text-muted d-block"><i class="fas fa-check-circle text-success"></i></small>
-                            <strong class="text-success" id="completedCount">0</strong>
-                        </div>
-                    </div>
-                    <div class="col-4">
-                        <div class="p-2 bg-warning bg-opacity-10 rounded text-center">
-                            <small class="text-muted d-block"><i class="fas fa-exclamation-circle text-warning"></i></small>
-                            <strong class="text-warning" id="partialCount">0</strong>
-                        </div>
-                    </div>
-                    <div class="col-4">
-                        <div class="p-2 bg-danger bg-opacity-10 rounded text-center">
-                            <small class="text-muted d-block"><i class="fas fa-clock text-danger"></i></small>
-                            <strong class="text-danger" id="pendingCount">0</strong>
-                        </div>
-                    </div>
-                </div>
+    <!-- Contenedor de Tabs -->
+    <div id="tab-pendientes" class="tab-content active">
+        <div id="pendientes-list" class="orders-container">
+            <!-- Las órdenes pendientes se cargarán aquí -->
+        </div>
+    </div>
 
-                <!-- Alerts -->
-                <div id="validationAlert" class="alert alert-danger alert-sm mb-2" role="alert" style="display: none;">
-                    <small id="validationAlertText"></small>
-                </div>
-                <div id="quantityMismatchAlert" class="alert alert-warning alert-sm mb-2" role="alert" style="display: none;">
-                    <small>
-                        <i class="fas fa-exclamation-triangle me-1"></i>
-                        <strong>Recepción Parcial:</strong> <span id="mismatchText"></span>
+    <div id="tab-historial" class="tab-content">
+        <div id="historial-list" class="orders-container">
+            <!-- El historial se cargará aquí -->
+        </div>
+    </div>
+
+    <!-- Paginación -->
+    {% if page_obj.has_other_pages %}
+    <nav aria-label="Paginación" class="mt-4">
+        <ul class="pagination justify-content-center flex-wrap">
+            {% if page_obj.has_previous %}
+                <li class="page-item"><a class="page-link" href="?page={{ page_obj.previous_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">&laquo; Anterior</a></li>
+            {% else %}
+                <li class="page-item disabled"><span class="page-link">&laquo; Anterior</span></li>
+            {% endif %}
+
+            {% for i in page_obj.paginator.page_range %}
+                {% if page_obj.number == i %}
+                    <li class="page-item active"><span class="page-link">{{ i }} <span class="sr-only">(actual)</span></span></li>
+                {% else %}
+                    <li class="page-item"><a class="page-link" href="?page={{ i }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">{{ i }}</a></li>
+                {% endif %}
+            {% endfor %}
+
+            {% if page_obj.has_next %}
+                <li class="page-item"><a class="page-link" href="?page={{ page_obj.next_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">Siguiente &raquo;</a></li>
+            {% else %}
+                <li class="page-item disabled"><span class="page-link">Siguiente &raquo;</span></li>
+            {% endif %}
+        </ul>
+    </nav>
+    {% endif %}
+</div>
+
+<!-- Modal: Recibir Orden (Mejorado) -->
+<div class="modal fade" id="receptionModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <!-- Header -->
+            <div class="modal-header border-bottom">
+                <div class="flex-grow-1">
+                    <h5 class="modal-title">
+                        <i class="fas fa-truck-loading text-success me-2"></i>
+                        Recibir Orden #<span id="receptionOrderId" class="fw-bold text-primary"></span>
+                    </h5>
+                    <small class="text-muted d-block mt-1">
+                        <i class="fas fa-building me-1"></i>
+                        <span id="receptionProveedorName">Cargando...</span>
                     </small>
                 </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
 
-                <!-- Action Buttons -->
-                <div class="d-flex gap-2">
-                    <button type="button" class="btn btn-outline-secondary" id="cancelReceptionBtn">
-                        <i class="fas fa-times me-2"></i>Cancelar
-                    </button>
-                    <button type="button" class="btn btn-success flex-grow-1" id="confirmReceptionBtn" disabled>
-                        <i class="fas fa-check me-2"></i> Confirmar
-                    </button>
+            <!-- Body -->
+            <div class="modal-body p-0">
+                <!-- Quick Actions -->
+                <div class="p-3 border-bottom bg-light">
+                    <div class="row g-2">
+                        <div class="col-md-6">
+                            <button type="button" class="btn btn-sm btn-success w-100" id="markAllReceivedBtn">
+                                <i class="fas fa-check-double me-1"></i> Marcar todo
+                            </button>
+                        </div>
+                        <div class="col-md-6">
+                            <button type="button" class="btn btn-sm btn-outline-secondary w-100" id="saveDraftBtn">
+                                <i class="fas fa-save me-1"></i> Guardar borrador
+                            </button>
+                        </div>
+                        <div class="col-12">
+                            <input type="text" class="form-control form-control-sm" id="searchProductInput" placeholder="Buscar producto..." autocomplete="off">
+                        </div>
+                        <div class="col-12">
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text bg-white">
+                                    <i class="fas fa-calendar-alt text-muted"></i>
+                                </span>
+                                <input type="date" class="form-control form-control-sm" id="generalExpiryDate">
+                                <button class="btn btn-outline-secondary btn-sm" type="button" id="applyGeneralExpiryBtn">
+                                    Aplicar a todos
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Reception Table -->
+                <form id="receptionForm">
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover mb-0 reception-table">
+                            <thead class="table-light">
+                                <tr>
+                                    <th style="width: 30%;">Producto</th>
+                                    <th class="text-center" style="width: 12%;">Solicitado</th>
+                                    <th class="text-center" style="width: 15%;">Recibido</th>
+                                    <th class="text-center" style="width: 15%;">Caducidad</th>
+                                    <th class="text-center" style="width: 12%;">Lote</th>
+                                    <th class="text-center" style="width: 16%;">Estado</th>
+                                </tr>
+                            </thead>
+                            <tbody id="receptionTableBody">
+                                <!-- Rows populated by JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </form>
+
+                <!-- Progress Section -->
+                <div class="p-3 border-top bg-light">
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <small class="fw-bold">Progreso de Recepción</small>
+                            <small class="text-muted" id="progressText">0 de 0</small>
+                        </div>
+                        <div class="progress" style="height: 8px;">
+                            <div class="progress-bar bg-success" id="progressBar" role="progressbar" style="width: 0%;"></div>
+                        </div>
+                    </div>
+
+                    <!-- Status Summary -->
+                    <div class="row g-2">
+                        <div class="col-4">
+                            <div class="p-2 bg-success bg-opacity-10 rounded text-center">
+                                <i class="fas fa-check-circle text-success d-block mb-1"></i>
+                                <strong class="text-success d-block" id="completedCount">0</strong>
+                                <small class="text-muted">Completo</small>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="p-2 bg-warning bg-opacity-10 rounded text-center">
+                                <i class="fas fa-exclamation-circle text-warning d-block mb-1"></i>
+                                <strong class="text-warning d-block" id="partialCount">0</strong>
+                                <small class="text-muted">Parcial</small>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="p-2 bg-secondary bg-opacity-10 rounded text-center">
+                                <i class="fas fa-circle text-secondary d-block mb-1"></i>
+                                <strong class="text-secondary d-block" id="pendingCount">0</strong>
+                                <small class="text-muted">Pendiente</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Alerts -->
+                    <div id="validationAlert" class="alert alert-danger alert-sm mt-3 mb-0" role="alert" style="display: none;">
+                        <small id="validationAlertText"></small>
+                    </div>
+                    <div id="quantityMismatchAlert" class="alert alert-warning alert-sm mt-3 mb-0" role="alert" style="display: none;">
+                        <small>
+                            <i class="fas fa-exclamation-triangle me-1"></i>
+                            <strong>Recepción Parcial:</strong> <span id="mismatchText"></span>
+                        </small>
+                    </div>
                 </div>
             </div>
-        </form>
+
+            <!-- Footer -->
+            <div class="modal-footer border-top">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-1"></i>Cancelar
+                </button>
+                <button type="button" class="btn btn-success" id="confirmReceptionBtn" disabled>
+                    <i class="fas fa-check me-1"></i> Confirmar Recepción
+                </button>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -352,6 +350,5 @@
 
 {% block extra_js %}
 <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
-<script src="{% static 'suppliers/js/reabastecimiento_reception.js' %}"></script>
 <script src="{% static 'suppliers/js/reabastecimiento_list.js' %}"></script>
 {% endblock %}
