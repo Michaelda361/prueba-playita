@@ -14,6 +14,7 @@ class CarritoPOS {
         this.cargarCarritoDelLocalStorage();
         this.configurarEventos();
         this.actualizarVistaCarrito();
+        this.actualizarTodosLosStocksVisuales(); // Actualizar stocks al cargar
     }
 
     configurarEventos() {
@@ -73,8 +74,8 @@ class CarritoPOS {
             const inputBusqueda = document.getElementById('product-search-input');
             inputBusqueda.value = '';
 
-            // Recargar la página para obtener todos los productos
-            location.reload();
+            // Volver a la vista de categorías
+            window.location.href = window.location.pathname;
         } catch (error) {
             console.error('Error al cargar productos:', error);
         }
@@ -185,18 +186,24 @@ class CarritoPOS {
 
         this.guardarCarritoEnLocalStorage();
         this.actualizarVistaCarrito();
+        this.actualizarStockVisual(productoId); // Actualizar stock visual
         this.mostrarNotificacion(`${nombre} agregado al carrito`);
     }
 
     removerDelCarrito(index) {
+        const item = this.carrito[index];
+        const productoId = item.producto_id;
+        
         this.carrito.splice(index, 1);
         this.guardarCarritoEnLocalStorage();
         this.actualizarVistaCarrito();
+        this.actualizarStockVisual(productoId); // Actualizar stock visual
     }
 
     actualizarCantidadCarrito(index, nuevaCantidad) {
         nuevaCantidad = parseInt(nuevaCantidad);
         const item = this.carrito[index];
+        const productoId = item.producto_id;
 
         if (nuevaCantidad <= 0) {
             this.removerDelCarrito(index);
@@ -214,6 +221,7 @@ class CarritoPOS {
         this.carrito[index].cantidad = nuevaCantidad;
         this.guardarCarritoEnLocalStorage();
         this.actualizarVistaCarrito();
+        this.actualizarStockVisual(productoId); // Actualizar stock visual
     }
 
     actualizarVistaCarrito() {
@@ -484,9 +492,83 @@ class CarritoPOS {
     }
 
     vaciarCarrito() {
+        // Guardar IDs de productos antes de vaciar
+        const productosIds = [...new Set(this.carrito.map(item => item.producto_id))];
+        
         this.carrito = [];
         this.guardarCarritoEnLocalStorage();
         this.actualizarVistaCarrito();
+        
+        // Actualizar stock visual de todos los productos que estaban en el carrito
+        productosIds.forEach(productoId => this.actualizarStockVisual(productoId));
+    }
+
+    /**
+     * Actualiza todos los stocks visuales de productos que están en el carrito
+     */
+    actualizarTodosLosStocksVisuales() {
+        // Obtener IDs únicos de productos en el carrito
+        const productosIds = [...new Set(this.carrito.map(item => item.producto_id))];
+        
+        // Actualizar cada uno
+        productosIds.forEach(productoId => this.actualizarStockVisual(productoId));
+    }
+
+    /**
+     * Actualiza el stock visual mostrado en la tarjeta del producto
+     * Calcula: Stock Real - Cantidad en Carrito = Stock Disponible
+     */
+    actualizarStockVisual(productoId) {
+        // Buscar todos los items del producto en el carrito (puede haber múltiples lotes)
+        const itemsEnCarrito = this.carrito.filter(item => item.producto_id === productoId);
+        
+        // Calcular cantidad total en carrito para este producto
+        const cantidadEnCarrito = itemsEnCarrito.reduce((total, item) => total + item.cantidad, 0);
+        
+        // Buscar la tarjeta del producto en el DOM
+        const btnProducto = document.querySelector(`button[data-producto-id="${productoId}"]`);
+        if (!btnProducto) return;
+        
+        const tarjetaProducto = btnProducto.closest('.product-card');
+        if (!tarjetaProducto) return;
+        
+        const badgeStock = tarjetaProducto.querySelector('.badge-stock');
+        if (!badgeStock) return;
+        
+        // Obtener el stock real del atributo data o del texto actual
+        let stockReal = parseInt(badgeStock.dataset.stockReal);
+        
+        // Si no existe el atributo, guardarlo la primera vez
+        if (isNaN(stockReal)) {
+            const textoStock = badgeStock.textContent.match(/\d+/);
+            stockReal = textoStock ? parseInt(textoStock[0]) : 0;
+            badgeStock.dataset.stockReal = stockReal;
+        }
+        
+        // Calcular stock disponible
+        const stockDisponible = stockReal - cantidadEnCarrito;
+        
+        // Actualizar el texto del badge
+        if (cantidadEnCarrito > 0) {
+            badgeStock.innerHTML = `Stock: ${stockDisponible} <small>(${cantidadEnCarrito} en carrito)</small>`;
+            badgeStock.classList.remove('bg-info', 'bg-success');
+            badgeStock.classList.add('bg-warning', 'text-dark');
+        } else {
+            badgeStock.textContent = `Stock: ${stockReal}`;
+            badgeStock.classList.remove('bg-warning', 'text-dark');
+            badgeStock.classList.add(stockReal <= 10 ? 'bg-warning text-dark' : 'bg-info');
+        }
+        
+        // Deshabilitar botón si no hay stock disponible
+        if (stockDisponible <= 0) {
+            btnProducto.disabled = true;
+            btnProducto.classList.add('disabled');
+            btnProducto.innerHTML = '<i class="bi bi-x-circle"></i> Sin stock';
+        } else {
+            btnProducto.disabled = false;
+            btnProducto.classList.remove('disabled');
+            btnProducto.innerHTML = '<i class="bi bi-plus-circle"></i>';
+        }
     }
 
     guardarCarritoEnLocalStorage() {

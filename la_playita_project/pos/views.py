@@ -27,11 +27,36 @@ VALOR_BASE_PUNTOS = Decimal('66000')
 @login_required
 @check_user_role(allowed_roles=['Administrador', 'Vendedor'])
 def pos_view(request):
-    productos = Producto.objects.filter(stock_actual__gt=0).select_related('categoria').order_by('nombre')
+    from inventory.models import Categoria
+    from django.db.models import Count, Sum, Q
+    
+    # Obtener categorías con conteo de productos disponibles
+    categorias = Categoria.objects.annotate(
+        total_productos=Count('producto', filter=Q(producto__stock_actual__gt=0))
+    ).filter(total_productos__gt=0).order_by('nombre')
+    
+    # Si se selecciona una categoría, cargar sus productos
+    categoria_id = request.GET.get('categoria')
+    productos = None
+    categoria_seleccionada = None
+    
+    if categoria_id:
+        try:
+            categoria_seleccionada = Categoria.objects.get(id=categoria_id)
+            productos = Producto.objects.filter(
+                categoria_id=categoria_id,
+                stock_actual__gt=0
+            ).select_related('categoria').order_by('nombre')
+        except Categoria.DoesNotExist:
+            pass
+    
     search_form = ProductoSearchForm()
     venta_form = VentaForm()
+    
     context = {
+        'categorias': categorias,
         'productos': productos,
+        'categoria_seleccionada': categoria_seleccionada,
         'search_form': search_form,
         'venta_form': venta_form,
     }
