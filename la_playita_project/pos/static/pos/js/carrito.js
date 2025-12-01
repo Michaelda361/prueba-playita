@@ -137,22 +137,225 @@ class CarritoPOS {
                 return;
             }
 
-            // Encontrar el primer lote con cantidad disponible.
-            const loteDisponible = producto.lotes.find(lote => lote.cantidad > 0);
+            // Filtrar lotes con stock disponible
+            const lotesDisponibles = producto.lotes.filter(lote => lote.cantidad > 0);
 
-            // Si no se encuentra un lote con stock, notificar al usuario.
-            if (!loteDisponible) {
+            if (lotesDisponibles.length === 0) {
                 this.mostrarNotificacion(`No hay stock disponible para "${this.escaparHTML(producto.nombre)}".`, 'danger');
                 return;
             }
 
-            // Agregar el producto al carrito con cantidad 1 y el lote encontrado.
-            const cantidadAAgregar = 1;
-            this.agregarAlCarrito(producto.id, producto.nombre, producto.precio, cantidadAAgregar, loteDisponible.id, loteDisponible.cantidad);
+            // Mostrar modal para seleccionar lote y cantidad
+            this.mostrarModalSeleccionLote(producto, lotesDisponibles);
 
         } catch (error) {
             console.error('Error al obtener producto:', error);
             this.mostrarNotificacion('Error al obtener detalles del producto.', 'danger');
+        }
+    }
+
+    mostrarModalSeleccionLote(producto, lotes) {
+        // Calcular stock total disponible
+        const stockTotal = lotes.reduce((sum, lote) => sum + lote.cantidad, 0);
+
+        const modalHTML = `
+            <div class="modal fade" id="modalSeleccionLote" tabindex="-1">
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content">
+                        <div class="modal-header bg-primary text-white">
+                            <h5 class="modal-title">
+                                <i class="bi bi-cart-plus me-2"></i>${this.escaparHTML(producto.nombre)}
+                            </h5>
+                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="text-center mb-4">
+                                <div class="display-6 text-primary mb-2">$${this.formatearMoneda(producto.precio)}</div>
+                                <p class="text-muted mb-0">
+                                    <i class="bi bi-box-seam me-1"></i>
+                                    Disponible: <strong>${stockTotal}</strong> unidades
+                                </p>
+                            </div>
+                            
+                            <div class="mb-4">
+                                <label for="input-cantidad" class="form-label fw-bold text-center d-block mb-3">
+                                    ¿Cuántas unidades deseas agregar?
+                                </label>
+                                <div class="d-flex gap-2 mb-3">
+                                    <button class="btn btn-outline-primary flex-fill" type="button" id="btn-cantidad-1">
+                                        1
+                                    </button>
+                                    <button class="btn btn-outline-primary flex-fill" type="button" id="btn-cantidad-5">
+                                        5
+                                    </button>
+                                    <button class="btn btn-outline-primary flex-fill" type="button" id="btn-cantidad-10">
+                                        10
+                                    </button>
+                                    <button class="btn btn-outline-success flex-fill" type="button" id="btn-cantidad-max">
+                                        <i class="bi bi-infinity"></i> Todo
+                                    </button>
+                                </div>
+                                <div class="input-group input-group-lg">
+                                    <button class="btn btn-outline-secondary" type="button" id="btn-decrementar">
+                                        <i class="bi bi-dash-lg"></i>
+                                    </button>
+                                    <input type="number" id="input-cantidad" class="form-control text-center fw-bold fs-3" 
+                                           value="1" min="1" max="${stockTotal}">
+                                    <button class="btn btn-outline-secondary" type="button" id="btn-incrementar">
+                                        <i class="bi bi-plus-lg"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div class="alert alert-success mb-0">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <span class="fw-bold">Subtotal:</span>
+                                    <span class="fs-3 fw-bold">$<span id="subtotal-modal">${this.formatearMoneda(producto.precio)}</span></span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                                Cancelar
+                            </button>
+                            <button type="button" class="btn btn-success btn-lg px-5" id="btn-agregar-carrito">
+                                <i class="bi bi-cart-plus me-2"></i>Agregar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        // Remover modal anterior si existe
+        const modalAnterior = document.getElementById('modalSeleccionLote');
+        if (modalAnterior) {
+            modalAnterior.remove();
+        }
+
+        // Insertar nuevo modal
+        document.body.insertAdjacentHTML('beforeend', modalHTML);
+
+        // Referencias a elementos
+        const inputCantidad = document.getElementById('input-cantidad');
+        const subtotalModal = document.getElementById('subtotal-modal');
+        const btnIncrementar = document.getElementById('btn-incrementar');
+        const btnDecrementar = document.getElementById('btn-decrementar');
+        const btnAgregar = document.getElementById('btn-agregar-carrito');
+        const btnCantidad1 = document.getElementById('btn-cantidad-1');
+        const btnCantidad5 = document.getElementById('btn-cantidad-5');
+        const btnCantidad10 = document.getElementById('btn-cantidad-10');
+        const btnCantidadMax = document.getElementById('btn-cantidad-max');
+
+        const actualizarSubtotal = () => {
+            const cantidad = parseInt(inputCantidad.value) || 1;
+            const subtotal = producto.precio * cantidad;
+            subtotalModal.textContent = this.formatearMoneda(subtotal);
+        };
+
+        const setCantidad = (valor) => {
+            const max = parseInt(inputCantidad.max);
+            const min = parseInt(inputCantidad.min);
+            let nuevaCantidad = parseInt(valor);
+            
+            if (nuevaCantidad > max) nuevaCantidad = max;
+            if (nuevaCantidad < min) nuevaCantidad = min;
+            
+            inputCantidad.value = nuevaCantidad;
+            actualizarSubtotal();
+        };
+
+        // Eventos botones rápidos
+        btnCantidad1.addEventListener('click', () => setCantidad(1));
+        btnCantidad5.addEventListener('click', () => setCantidad(5));
+        btnCantidad10.addEventListener('click', () => setCantidad(10));
+        btnCantidadMax.addEventListener('click', () => setCantidad(stockTotal));
+
+        // Eventos
+        inputCantidad.addEventListener('input', () => {
+            const max = parseInt(inputCantidad.max);
+            const min = parseInt(inputCantidad.min);
+            let valor = parseInt(inputCantidad.value);
+            
+            if (valor > max) inputCantidad.value = max;
+            if (valor < min) inputCantidad.value = min;
+            
+            actualizarSubtotal();
+        });
+
+        btnIncrementar.addEventListener('click', () => {
+            const max = parseInt(inputCantidad.max);
+            const actual = parseInt(inputCantidad.value);
+            if (actual < max) {
+                inputCantidad.value = actual + 1;
+                actualizarSubtotal();
+            }
+        });
+
+        btnDecrementar.addEventListener('click', () => {
+            const min = parseInt(inputCantidad.min);
+            const actual = parseInt(inputCantidad.value);
+            if (actual > min) {
+                inputCantidad.value = actual - 1;
+                actualizarSubtotal();
+            }
+        });
+
+        btnAgregar.addEventListener('click', () => {
+            const cantidadTotal = parseInt(inputCantidad.value);
+            
+            // Distribuir la cantidad entre los lotes disponibles (FIFO)
+            this.agregarProductoMultiLote(producto, lotes, cantidadTotal);
+            
+            // Cerrar modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('modalSeleccionLote'));
+            modal.hide();
+        });
+
+        // Mostrar modal
+        const modal = new bootstrap.Modal(document.getElementById('modalSeleccionLote'));
+        modal.show();
+    }
+
+    /**
+     * Agrega un producto al carrito distribuyendo la cantidad entre múltiples lotes (FIFO)
+     */
+    agregarProductoMultiLote(producto, lotes, cantidadTotal) {
+        let cantidadRestante = cantidadTotal;
+        let lotesUsados = 0;
+
+        // Ordenar lotes por fecha de caducidad (FIFO - primero los que vencen antes)
+        const lotesOrdenados = [...lotes].sort((a, b) => {
+            if (a.fecha_caducidad === 'N/A') return 1;
+            if (b.fecha_caducidad === 'N/A') return -1;
+            return new Date(a.fecha_caducidad) - new Date(b.fecha_caducidad);
+        });
+
+        // Distribuir la cantidad entre los lotes
+        for (const lote of lotesOrdenados) {
+            if (cantidadRestante <= 0) break;
+
+            const cantidadDeLote = Math.min(cantidadRestante, lote.cantidad);
+            
+            this.agregarAlCarrito(
+                producto.id,
+                producto.nombre,
+                producto.precio,
+                cantidadDeLote,
+                lote.id,
+                lote.cantidad
+            );
+
+            cantidadRestante -= cantidadDeLote;
+            lotesUsados++;
+        }
+
+        // Mostrar notificación informativa
+        if (lotesUsados > 1) {
+            this.mostrarNotificacion(
+                `${producto.nombre}: ${cantidadTotal} unidades agregadas usando ${lotesUsados} lotes`,
+                'success'
+            );
         }
     }
 

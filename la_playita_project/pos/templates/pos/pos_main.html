@@ -481,7 +481,7 @@
                     </label>
                     <div class="input-group">
                         <select id="cliente-select" name="cliente" class="form-select">
-                            <option value="">Consumidor Final</option>
+                            <option value="1" selected>Consumidor Final</option>
                             {% for cliente in clientes %}
                                 <option value="{{ cliente.id }}">{{ cliente.nombres }} {{ cliente.apellidos }}</option>
                             {% endfor %}

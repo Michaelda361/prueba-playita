@@ -53,12 +53,16 @@ def pos_view(request):
     search_form = ProductoSearchForm()
     venta_form = VentaForm()
     
+    # Cargar clientes para el selector (excluyendo Consumidor Final que se muestra por defecto)
+    clientes = Cliente.objects.exclude(id=1).order_by('nombres', 'apellidos')
+    
     context = {
         'categorias': categorias,
         'productos': productos,
         'categoria_seleccionada': categoria_seleccionada,
         'search_form': search_form,
         'venta_form': venta_form,
+        'clientes': clientes,
     }
     return render(request, 'pos/pos_main.html', context)
 
