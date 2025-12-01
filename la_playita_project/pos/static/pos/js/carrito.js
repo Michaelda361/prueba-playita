@@ -14,6 +14,7 @@ class CarritoPOS {
         this.cargarCarritoDelLocalStorage();
         this.configurarEventos();
         this.actualizarVistaCarrito();
+        this.actualizarTodosLosStocksVisuales(); // Actualizar stocks al cargar
     }
 
     configurarEventos() {
@@ -73,8 +74,8 @@ class CarritoPOS {
             const inputBusqueda = document.getElementById('product-search-input');
             inputBusqueda.value = '';
 
-            // Recargar la página para obtener todos los productos
-            location.reload();
+            // Volver a la vista de categorías
+            window.location.href = window.location.pathname;
         } catch (error) {
             console.error('Error al cargar productos:', error);
         }
@@ -136,22 +137,225 @@ class CarritoPOS {
                 return;
             }
 
-            // Encontrar el primer lote con cantidad disponible.
-            const loteDisponible = producto.lotes.find(lote => lote.cantidad > 0);
+            // Filtrar lotes con stock disponible
+            const lotesDisponibles = producto.lotes.filter(lote => lote.cantidad > 0);
 
-            // Si no se encuentra un lote con stock, notificar al usuario.
-            if (!loteDisponible) {
+            if (lotesDisponibles.length === 0) {
                 this.mostrarNotificacion(`No hay stock disponible para "${this.escaparHTML(producto.nombre)}".`, 'danger');
                 return;
             }
 
-            // Agregar el producto al carrito con cantidad 1 y el lote encontrado.
-            const cantidadAAgregar = 1;
-            this.agregarAlCarrito(producto.id, producto.nombre, producto.precio, cantidadAAgregar, loteDisponible.id, loteDisponible.cantidad);
+            // Mostrar modal para seleccionar lote y cantidad
+            this.mostrarModalSeleccionLote(producto, lotesDisponibles);
 
         } catch (error) {
             console.error('Error al obtener producto:', error);
             this.mostrarNotificacion('Error al obtener detalles del producto.', 'danger');
+        }
+    }
+
+    mostrarModalSeleccionLote(producto, lotes) {
+        // Calcular stock total disponible
+        const stockTotal = lotes.reduce((sum, lote) => sum + lote.cantidad, 0);
+
+        const modalHTML = `
+            <div class="modal fade" id="modalSeleccionLote" tabindex="-1">
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content">
+                        <div class="modal-header bg-primary text-white">
+                            <h5 class="modal-title">
+                                <i class="bi bi-cart-plus me-2"></i>${this.escaparHTML(producto.nombre)}
+                            </h5>
+                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="text-center mb-4">
+                                <div class="display-6 text-primary mb-2">$${this.formatearMoneda(producto.precio)}</div>
+                                <p class="text-muted mb-0">
+                                    <i class="bi bi-box-seam me-1"></i>
+                                    Disponible: <strong>${stockTotal}</strong> unidades
+                                </p>
+                            </div>
+                            
+                            <div class="mb-4">
+                                <label for="input-cantidad" class="form-label fw-bold text-center d-block mb-3">
+                                    ¿Cuántas unidades deseas agregar?
+                                </label>
+                                <div class="d-flex gap-2 mb-3">
+                                    <button class="btn btn-outline-primary flex-fill" type="button" id="btn-cantidad-1">
+                                        1
+                                    </button>
+                                    <button class="btn btn-outline-primary flex-fill" type="button" id="btn-cantidad-5">
+                                        5
+                                    </button>
+                                    <button class="btn btn-outline-primary flex-fill" type="button" id="btn-cantidad-10">
+                                        10
+                                    </button>
+                                    <button class="btn btn-outline-success flex-fill" type="button" id="btn-cantidad-max">
+                                        <i class="bi bi-infinity"></i> Todo
+                                    </button>
+                                </div>
+                                <div class="input-group input-group-lg">
+                                    <button class="btn btn-outline-secondary" type="button" id="btn-decrementar">
+                                        <i class="bi bi-dash-lg"></i>
+                                    </button>
+                                    <input type="number" id="input-cantidad" class="form-control text-center fw-bold fs-3" 
+                                           value="1" min="1" max="${stockTotal}">
+                                    <button class="btn btn-outline-secondary" type="button" id="btn-incrementar">
+                                        <i class="bi bi-plus-lg"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div class="alert alert-success mb-0">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <span class="fw-bold">Subtotal:</span>
+                                    <span class="fs-3 fw-bold">$<span id="subtotal-modal">${this.formatearMoneda(producto.precio)}</span></span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                                Cancelar
+                            </button>
+                            <button type="button" class="btn btn-success btn-lg px-5" id="btn-agregar-carrito">
+                                <i class="bi bi-cart-plus me-2"></i>Agregar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        // Remover modal anterior si existe
+        const modalAnterior = document.getElementById('modalSeleccionLote');
+        if (modalAnterior) {
+            modalAnterior.remove();
+        }
+
+        // Insertar nuevo modal
+        document.body.insertAdjacentHTML('beforeend', modalHTML);
+
+        // Referencias a elementos
+        const inputCantidad = document.getElementById('input-cantidad');
+        const subtotalModal = document.getElementById('subtotal-modal');
+        const btnIncrementar = document.getElementById('btn-incrementar');
+        const btnDecrementar = document.getElementById('btn-decrementar');
+        const btnAgregar = document.getElementById('btn-agregar-carrito');
+        const btnCantidad1 = document.getElementById('btn-cantidad-1');
+        const btnCantidad5 = document.getElementById('btn-cantidad-5');
+        const btnCantidad10 = document.getElementById('btn-cantidad-10');
+        const btnCantidadMax = document.getElementById('btn-cantidad-max');
+
+        const actualizarSubtotal = () => {
+            const cantidad = parseInt(inputCantidad.value) || 1;
+            const subtotal = producto.precio * cantidad;
+            subtotalModal.textContent = this.formatearMoneda(subtotal);
+        };
+
+        const setCantidad = (valor) => {
+            const max = parseInt(inputCantidad.max);
+            const min = parseInt(inputCantidad.min);
+            let nuevaCantidad = parseInt(valor);
+            
+            if (nuevaCantidad > max) nuevaCantidad = max;
+            if (nuevaCantidad < min) nuevaCantidad = min;
+            
+            inputCantidad.value = nuevaCantidad;
+            actualizarSubtotal();
+        };
+
+        // Eventos botones rápidos
+        btnCantidad1.addEventListener('click', () => setCantidad(1));
+        btnCantidad5.addEventListener('click', () => setCantidad(5));
+        btnCantidad10.addEventListener('click', () => setCantidad(10));
+        btnCantidadMax.addEventListener('click', () => setCantidad(stockTotal));
+
+        // Eventos
+        inputCantidad.addEventListener('input', () => {
+            const max = parseInt(inputCantidad.max);
+            const min = parseInt(inputCantidad.min);
+            let valor = parseInt(inputCantidad.value);
+            
+            if (valor > max) inputCantidad.value = max;
+            if (valor < min) inputCantidad.value = min;
+            
+            actualizarSubtotal();
+        });
+
+        btnIncrementar.addEventListener('click', () => {
+            const max = parseInt(inputCantidad.max);
+            const actual = parseInt(inputCantidad.value);
+            if (actual < max) {
+                inputCantidad.value = actual + 1;
+                actualizarSubtotal();
+            }
+        });
+
+        btnDecrementar.addEventListener('click', () => {
+            const min = parseInt(inputCantidad.min);
+            const actual = parseInt(inputCantidad.value);
+            if (actual > min) {
+                inputCantidad.value = actual - 1;
+                actualizarSubtotal();
+            }
+        });
+
+        btnAgregar.addEventListener('click', () => {
+            const cantidadTotal = parseInt(inputCantidad.value);
+            
+            // Distribuir la cantidad entre los lotes disponibles (FIFO)
+            this.agregarProductoMultiLote(producto, lotes, cantidadTotal);
+            
+            // Cerrar modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('modalSeleccionLote'));
+            modal.hide();
+        });
+
+        // Mostrar modal
+        const modal = new bootstrap.Modal(document.getElementById('modalSeleccionLote'));
+        modal.show();
+    }
+
+    /**
+     * Agrega un producto al carrito distribuyendo la cantidad entre múltiples lotes (FIFO)
+     */
+    agregarProductoMultiLote(producto, lotes, cantidadTotal) {
+        let cantidadRestante = cantidadTotal;
+        let lotesUsados = 0;
+
+        // Ordenar lotes por fecha de caducidad (FIFO - primero los que vencen antes)
+        const lotesOrdenados = [...lotes].sort((a, b) => {
+            if (a.fecha_caducidad === 'N/A') return 1;
+            if (b.fecha_caducidad === 'N/A') return -1;
+            return new Date(a.fecha_caducidad) - new Date(b.fecha_caducidad);
+        });
+
+        // Distribuir la cantidad entre los lotes
+        for (const lote of lotesOrdenados) {
+            if (cantidadRestante <= 0) break;
+
+            const cantidadDeLote = Math.min(cantidadRestante, lote.cantidad);
+            
+            this.agregarAlCarrito(
+                producto.id,
+                producto.nombre,
+                producto.precio,
+                cantidadDeLote,
+                lote.id,
+                lote.cantidad
+            );
+
+            cantidadRestante -= cantidadDeLote;
+            lotesUsados++;
+        }
+
+        // Mostrar notificación informativa
+        if (lotesUsados > 1) {
+            this.mostrarNotificacion(
+                `${producto.nombre}: ${cantidadTotal} unidades agregadas usando ${lotesUsados} lotes`,
+                'success'
+            );
         }
     }
 
@@ -185,18 +389,24 @@ class CarritoPOS {
 
         this.guardarCarritoEnLocalStorage();
         this.actualizarVistaCarrito();
+        this.actualizarStockVisual(productoId); // Actualizar stock visual
         this.mostrarNotificacion(`${nombre} agregado al carrito`);
     }
 
     removerDelCarrito(index) {
+        const item = this.carrito[index];
+        const productoId = item.producto_id;
+        
         this.carrito.splice(index, 1);
         this.guardarCarritoEnLocalStorage();
         this.actualizarVistaCarrito();
+        this.actualizarStockVisual(productoId); // Actualizar stock visual
     }
 
     actualizarCantidadCarrito(index, nuevaCantidad) {
         nuevaCantidad = parseInt(nuevaCantidad);
         const item = this.carrito[index];
+        const productoId = item.producto_id;
 
         if (nuevaCantidad <= 0) {
             this.removerDelCarrito(index);
@@ -214,6 +424,7 @@ class CarritoPOS {
         this.carrito[index].cantidad = nuevaCantidad;
         this.guardarCarritoEnLocalStorage();
         this.actualizarVistaCarrito();
+        this.actualizarStockVisual(productoId); // Actualizar stock visual
     }
 
     actualizarVistaCarrito() {
@@ -290,8 +501,14 @@ class CarritoPOS {
             return;
         }
 
-        // Obtener clientes desde la API - iniciar con opción por defecto
-        let clientesHTML = '<option value="">-- Sin Cliente --</option>';
+        // Obtener el cliente seleccionado del selector principal
+        const clienteSelectPrincipal = document.getElementById('cliente-select');
+        const clienteSeleccionado = clienteSelectPrincipal ? clienteSelectPrincipal.value : '';
+        
+        console.log('Cliente seleccionado en el selector principal:', clienteSeleccionado);
+
+        // Obtener clientes desde la API
+        let clientesHTML = '<option value="">Consumidor Final</option>';
 
         try {
             console.log('Obteniendo clientes...');
@@ -305,7 +522,8 @@ class CarritoPOS {
                 if (data.success && data.clientes && data.clientes.length > 0) {
                     // Construir opciones de clientes
                     data.clientes.forEach(cliente => {
-                        clientesHTML += `<option value="${cliente.id}">${this.escaparHTML(cliente.nombre)}</option>`;
+                        const selected = clienteSeleccionado && cliente.id == clienteSeleccionado ? 'selected' : '';
+                        clientesHTML += `<option value="${cliente.id}" ${selected}>${this.escaparHTML(cliente.nombre)}</option>`;
                     });
                     console.log(`Se cargaron ${data.clientes.length} clientes`);
                 }
@@ -409,9 +627,13 @@ class CarritoPOS {
     }
 
     async confirmarVenta() {
-        const clienteId = document.getElementById('cliente-pago').value || null;
+        const clienteIdSeleccionado = document.getElementById('cliente-pago').value;
+        // Si no se selecciona cliente, usar Consumidor Final (ID 1)
+        const clienteId = clienteIdSeleccionado ? parseInt(clienteIdSeleccionado) : 1;
         const metodoPago = document.getElementById('metodo-pago').value;
         const canalVenta = document.getElementById('canal-venta').value;
+
+        console.log('Cliente ID para la venta:', clienteId);
 
         // Validar que los campos requeridos estén completos
         if (!metodoPago || metodoPago.trim() === '') {
@@ -437,7 +659,7 @@ class CarritoPOS {
                     'X-CSRFToken': this.obtenerCSRFToken(),
                 },
                 body: JSON.stringify({
-                    cliente_id: clienteId ? parseInt(clienteId) : null,
+                    cliente_id: clienteId,
                     metodo_pago: metodoPago,
                     canal_venta: canalVenta,
                     items: this.carrito
@@ -473,9 +695,83 @@ class CarritoPOS {
     }
 
     vaciarCarrito() {
+        // Guardar IDs de productos antes de vaciar
+        const productosIds = [...new Set(this.carrito.map(item => item.producto_id))];
+        
         this.carrito = [];
         this.guardarCarritoEnLocalStorage();
         this.actualizarVistaCarrito();
+        
+        // Actualizar stock visual de todos los productos que estaban en el carrito
+        productosIds.forEach(productoId => this.actualizarStockVisual(productoId));
+    }
+
+    /**
+     * Actualiza todos los stocks visuales de productos que están en el carrito
+     */
+    actualizarTodosLosStocksVisuales() {
+        // Obtener IDs únicos de productos en el carrito
+        const productosIds = [...new Set(this.carrito.map(item => item.producto_id))];
+        
+        // Actualizar cada uno
+        productosIds.forEach(productoId => this.actualizarStockVisual(productoId));
+    }
+
+    /**
+     * Actualiza el stock visual mostrado en la tarjeta del producto
+     * Calcula: Stock Real - Cantidad en Carrito = Stock Disponible
+     */
+    actualizarStockVisual(productoId) {
+        // Buscar todos los items del producto en el carrito (puede haber múltiples lotes)
+        const itemsEnCarrito = this.carrito.filter(item => item.producto_id === productoId);
+        
+        // Calcular cantidad total en carrito para este producto
+        const cantidadEnCarrito = itemsEnCarrito.reduce((total, item) => total + item.cantidad, 0);
+        
+        // Buscar la tarjeta del producto en el DOM
+        const btnProducto = document.querySelector(`button[data-producto-id="${productoId}"]`);
+        if (!btnProducto) return;
+        
+        const tarjetaProducto = btnProducto.closest('.product-card');
+        if (!tarjetaProducto) return;
+        
+        const badgeStock = tarjetaProducto.querySelector('.badge-stock');
+        if (!badgeStock) return;
+        
+        // Obtener el stock real del atributo data o del texto actual
+        let stockReal = parseInt(badgeStock.dataset.stockReal);
+        
+        // Si no existe el atributo, guardarlo la primera vez
+        if (isNaN(stockReal)) {
+            const textoStock = badgeStock.textContent.match(/\d+/);
+            stockReal = textoStock ? parseInt(textoStock[0]) : 0;
+            badgeStock.dataset.stockReal = stockReal;
+        }
+        
+        // Calcular stock disponible
+        const stockDisponible = stockReal - cantidadEnCarrito;
+        
+        // Actualizar el texto del badge
+        if (cantidadEnCarrito > 0) {
+            badgeStock.innerHTML = `Stock: ${stockDisponible} <small>(${cantidadEnCarrito} en carrito)</small>`;
+            badgeStock.classList.remove('bg-info', 'bg-success');
+            badgeStock.classList.add('bg-warning', 'text-dark');
+        } else {
+            badgeStock.textContent = `Stock: ${stockReal}`;
+            badgeStock.classList.remove('bg-warning', 'text-dark');
+            badgeStock.classList.add(stockReal <= 10 ? 'bg-warning text-dark' : 'bg-info');
+        }
+        
+        // Deshabilitar botón si no hay stock disponible
+        if (stockDisponible <= 0) {
+            btnProducto.disabled = true;
+            btnProducto.classList.add('disabled');
+            btnProducto.innerHTML = '<i class="bi bi-x-circle"></i> Sin stock';
+        } else {
+            btnProducto.disabled = false;
+            btnProducto.classList.remove('disabled');
+            btnProducto.innerHTML = '<i class="bi bi-plus-circle"></i>';
+        }
     }
 
     guardarCarritoEnLocalStorage() {

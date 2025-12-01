@@ -27,33 +27,112 @@ VALOR_BASE_PUNTOS = Decimal('66000')
 @login_required
 @check_user_role(allowed_roles=['Administrador', 'Vendedor'])
 def pos_view(request):
-    productos = Producto.objects.filter(stock_actual__gt=0).select_related('categoria').order_by('nombre')
+    from inventory.models import Categoria
+    from django.db.models import Count, Sum, Q
+    
+    # Obtener categorías con conteo de productos disponibles
+    categorias = Categoria.objects.annotate(
+        total_productos=Count('producto', filter=Q(producto__stock_actual__gt=0))
+    ).filter(total_productos__gt=0).order_by('nombre')
+    
+    # Si se selecciona una categoría, cargar sus productos
+    categoria_id = request.GET.get('categoria')
+    productos = None
+    categoria_seleccionada = None
+    
+    if categoria_id:
+        try:
+            categoria_seleccionada = Categoria.objects.get(id=categoria_id)
+            productos = Producto.objects.filter(
+                categoria_id=categoria_id,
+                stock_actual__gt=0
+            ).select_related('categoria').order_by('nombre')
+        except Categoria.DoesNotExist:
+            pass
+    
     search_form = ProductoSearchForm()
     venta_form = VentaForm()
+    
+    # Cargar clientes para el selector (excluyendo Consumidor Final que se muestra por defecto)
+    clientes = Cliente.objects.exclude(id=1).order_by('nombres', 'apellidos')
+    
     context = {
+        'categorias': categorias,
         'productos': productos,
+        'categoria_seleccionada': categoria_seleccionada,
         'search_form': search_form,
         'venta_form': venta_form,
+        'clientes': clientes,
     }
     return render(request, 'pos/pos_main.html', context)
 
 @login_required
 def listar_ventas(request):
-    ventas = Venta.objects.select_related('cliente', 'usuario').order_by('-fecha_venta')
+    from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
+    from django.utils import timezone
+    
+    ventas = Venta.objects.select_related('cliente', 'usuario').prefetch_related('pago_set').order_by('-fecha_venta')
 
-    fecha = request.GET.get('fecha')
-    if fecha:
+    # Filtro por rango de fechas
+    fecha_desde = request.GET.get('fecha_desde')
+    fecha_hasta = request.GET.get('fecha_hasta')
+    
+    if fecha_desde:
         try:
-            fecha_dt = datetime.strptime(fecha, '%Y-%m-%d').date()
-            ventas = ventas.filter(fecha_venta__date=fecha_dt)
-        except Exception:
+            # Convertir a datetime con hora 00:00:00 y hacer timezone-aware
+            fecha_desde_dt = datetime.strptime(fecha_desde, '%Y-%m-%d')
+            fecha_desde_aware = timezone.make_aware(fecha_desde_dt.replace(hour=0, minute=0, second=0))
+            ventas = ventas.filter(fecha_venta__gte=fecha_desde_aware)
+        except Exception as e:
+            print(f"Error en fecha_desde: {e}")
+            pass
+    
+    if fecha_hasta:
+        try:
+            # Convertir a datetime con hora 23:59:59 y hacer timezone-aware
+            fecha_hasta_dt = datetime.strptime(fecha_hasta, '%Y-%m-%d')
+            fecha_hasta_aware = timezone.make_aware(fecha_hasta_dt.replace(hour=23, minute=59, second=59))
+            ventas = ventas.filter(fecha_venta__lte=fecha_hasta_aware)
+        except Exception as e:
+            print(f"Error en fecha_hasta: {e}")
             pass
 
+    # Filtro por método de pago
     metodo_pago = request.GET.get('metodo_pago')
     if metodo_pago:
-        ventas = ventas.filter(pago__metodo_pago=metodo_pago)
+        ventas = ventas.filter(pago__metodo_pago=metodo_pago).distinct()
 
-    return render(request, 'pos/listar_ventas.html', {'ventas': ventas})
+    # Filtro por canal de venta
+    canal_venta = request.GET.get('canal_venta')
+    if canal_venta:
+        ventas = ventas.filter(canal_venta=canal_venta)
+
+    # Paginación
+    items_por_pagina = request.GET.get('items', 10)
+    try:
+        items_por_pagina = int(items_por_pagina)
+        if items_por_pagina not in [10, 20, 50, 100]:
+            items_por_pagina = 10
+    except (ValueError, TypeError):
+        items_por_pagina = 10
+
+    paginator = Paginator(ventas, items_por_pagina)
+    page = request.GET.get('page', 1)
+
+    try:
+        ventas_paginadas = paginator.page(page)
+    except PageNotAnInteger:
+        ventas_paginadas = paginator.page(1)
+    except EmptyPage:
+        ventas_paginadas = paginator.page(paginator.num_pages)
+
+    context = {
+        'ventas': ventas_paginadas,
+        'total_ventas': paginator.count,
+        'items_por_pagina': items_por_pagina,
+    }
+
+    return render(request, 'pos/listar_ventas.html', context)
 
 @login_required
 def buscar_productos(request):
