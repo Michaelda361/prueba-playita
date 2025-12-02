@@ -71,7 +71,11 @@ def listar_ventas(request):
     from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
     from django.utils import timezone
     
-    ventas = Venta.objects.select_related('cliente', 'usuario').prefetch_related('pago_set').order_by('-fecha_venta')
+    # Si es vendedor, solo ver sus propias ventas
+    if request.user.rol.nombre == 'Vendedor':
+        ventas = Venta.objects.filter(usuario=request.user).select_related('cliente', 'usuario').prefetch_related('pago_set').order_by('-fecha_venta')
+    else:
+        ventas = Venta.objects.select_related('cliente', 'usuario').prefetch_related('pago_set').order_by('-fecha_venta')
 
     # Filtro por rango de fechas
     fecha_desde = request.GET.get('fecha_desde')
@@ -394,6 +398,10 @@ def dashboard_reportes(request):
     hace_7_dias = ahora - timedelta(days=7)
     hace_30_dias = ahora - timedelta(days=30)
     
+    # Determinar si es vendedor para filtrar sus propias ventas
+    es_vendedor = request.user.rol.nombre == 'Vendedor'
+    filtro_usuario = {'usuario': request.user} if es_vendedor else {}
+    
     # Datos de inventario para accesos rápidos
     total_productos = Producto.objects.count()
     
@@ -434,17 +442,17 @@ def dashboard_reportes(request):
     productos_sin_movimiento = lista_productos_sin_movimiento.count()
     
     # Ventas del día
-    ventas_hoy = Venta.objects.filter(fecha_venta__gte=hoy_inicio)
+    ventas_hoy = Venta.objects.filter(fecha_venta__gte=hoy_inicio, **filtro_usuario)
     total_hoy = ventas_hoy.aggregate(Sum('total_venta'))['total_venta__sum'] or Decimal('0')
     cantidad_hoy = ventas_hoy.count()
     
     # Ventas últimos 7 días
-    ventas_7dias = Venta.objects.filter(fecha_venta__gte=hace_7_dias)
+    ventas_7dias = Venta.objects.filter(fecha_venta__gte=hace_7_dias, **filtro_usuario)
     total_7dias = ventas_7dias.aggregate(Sum('total_venta'))['total_venta__sum'] or Decimal('0')
     cantidad_7dias = ventas_7dias.count()
     
     # Ventas últimos 30 días
-    ventas_30dias = Venta.objects.filter(fecha_venta__gte=hace_30_dias)
+    ventas_30dias = Venta.objects.filter(fecha_venta__gte=hace_30_dias, **filtro_usuario)
     total_30dias = ventas_30dias.aggregate(Sum('total_venta'))['total_venta__sum'] or Decimal('0')
     cantidad_30dias = ventas_30dias.count()
     
@@ -469,27 +477,32 @@ def dashboard_reportes(request):
     
     # Top 5 productos más vendidos (últimos 30 días)
     top_productos = VentaDetalle.objects.filter(
-        venta__fecha_venta__gte=hace_30_dias
+        venta__fecha_venta__gte=hace_30_dias,
+        **{f'venta__{k}': v for k, v in filtro_usuario.items()}
     ).values('producto__nombre').annotate(
         cantidad_total=Sum('cantidad'),
         ingresos=Sum('subtotal')
     ).order_by('-cantidad_total')[:5]
     
-    # Top 5 vendedores (últimos 30 días)
-    top_vendedores = Venta.objects.filter(
-        fecha_venta__gte=hace_30_dias
-    ).values(
-        'usuario__first_name', 
-        'usuario__last_name',
-        'usuario__username'
-    ).annotate(
-        total_ventas=Sum('total_venta'),
-        cantidad=Count('id')
-    ).order_by('-total_ventas')[:5]
+    # Top 5 vendedores (solo para administradores)
+    if not es_vendedor:
+        top_vendedores = Venta.objects.filter(
+            fecha_venta__gte=hace_30_dias
+        ).values(
+            'usuario__first_name', 
+            'usuario__last_name',
+            'usuario__username'
+        ).annotate(
+            total_ventas=Sum('total_venta'),
+            cantidad=Count('id')
+        ).order_by('-total_ventas')[:5]
+    else:
+        top_vendedores = []
     
     # Top 5 clientes (últimos 30 días)
     top_clientes = Venta.objects.filter(
-        fecha_venta__gte=hace_30_dias
+        fecha_venta__gte=hace_30_dias,
+        **filtro_usuario
     ).exclude(
         cliente__nombres='Consumidor',
         cliente__apellidos='Final'
@@ -542,7 +555,7 @@ def dashboard_reportes(request):
     
     ventas_por_fecha_dict = defaultdict(lambda: {'total': Decimal('0'), 'cantidad': 0})
     
-    for venta in Venta.objects.filter(fecha_venta__gte=hace_30_dias):
+    for venta in Venta.objects.filter(fecha_venta__gte=hace_30_dias, **filtro_usuario):
         fecha_str = venta.fecha_venta.date().strftime('%Y-%m-%d')
         ventas_por_fecha_dict[fecha_str]['total'] += venta.total_venta
         ventas_por_fecha_dict[fecha_str]['cantidad'] += 1
@@ -585,6 +598,7 @@ def dashboard_reportes(request):
         'lista_productos_stock_bajo': lista_productos_stock_bajo,
         'lista_productos_agotados': lista_productos_agotados,
         'lista_productos_sin_movimiento': lista_productos_sin_movimiento,
+        'es_vendedor': es_vendedor,
     }
     
     return render(request, 'pos/dashboard_reportes.html', context)

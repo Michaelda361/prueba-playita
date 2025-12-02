@@ -17,11 +17,15 @@ import json
 
 
 @login_required
-@check_user_role(allowed_roles=['Administrador'])
+@check_user_role(allowed_roles=['Administrador', 'Vendedor'])
 def cliente_list(request):
-    """Lista todos los clientes del sistema (solo Administrador)."""
+    """Lista todos los clientes del sistema."""
     clientes = Cliente.objects.all().order_by('nombres')
-    return render(request, 'clients/cliente_list.html', {'clientes': clientes})
+    es_vendedor = request.user.rol.nombre == 'Vendedor'
+    return render(request, 'clients/cliente_list.html', {
+        'clientes': clientes,
+        'es_vendedor': es_vendedor
+    })
 
 
 @login_required

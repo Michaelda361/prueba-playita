@@ -107,6 +107,18 @@
                         <span>Inventario</span>
                     </a>
                 </li>
+                <li>
+                    <a href="{% url 'pos:listar_ventas' %}" class="sidebar-link">
+                        <i class="bi bi-receipt"></i>
+                        <span>Mis Ventas</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="{% url 'clients:cliente_list' %}" class="sidebar-link">
+                        <i class="bi bi-gift"></i>
+                        <span>Canjeables</span>
+                    </a>
+                </li>
                 {% endif %}
 
                 {% if user|has_role:'Administrador' %}
@@ -114,12 +126,6 @@
                     <a href="{% url 'reportes:panel_reportes' %}" class="sidebar-link">
                         <i class="bi bi-graph-up"></i>
                         <span>Reportes</span>
-                    </a>
-                </li>
-                <li>
-                    <a href="{% url 'clients:cliente_list' %}" class="sidebar-link">
-                        <i class="bi bi-gift"></i>
-                        <span>Canjeables</span>
                     </a>
                 </li>
                 <li>
