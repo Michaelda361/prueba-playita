@@ -171,13 +171,14 @@
                                     <td class="text-center" role="gridcell">{% render_field f.cantidad class="form-control form-control-sm cantidad-input text-center" required="required" aria-label="Cantidad fila {{ forloop.counter }}" placeholder="0" %}</td>
                                     <td class="text-center" role="gridcell">{% render_field f.costo_unitario class="form-control form-control-sm costo-unitario-input text-center" required="required" aria-label="Costo unitario fila {{ forloop.counter }}" placeholder="0" %}</td>
                                     <td class="text-center" role="gridcell">
-                                        {% render_field f.iva class="iva-field" type="hidden" %}
+                                        <!-- Debug: IVA instance value = {{ f.instance.iva }} -->
+                                        <input type="hidden" name="{{ f.iva.html_name }}" class="iva-field" value="{% if f.instance.iva %}{{ f.instance.iva }}{% else %}0{% endif %}" data-debug-iva="{{ f.instance.iva }}">
                                         <select class="form-select form-select-sm iva-select text-center" data-row-index="{{ forloop.counter0 }}" data-producto-id="{{ f.instance.producto_id }}" data-tasa-iva-id="{{ f.instance.producto.tasa_iva_id }}" data-iva-value="{{ f.instance.iva }}" aria-label="IVA fila {{ forloop.counter }}">
                                             <option value="">Seleccionar IVA</option>
                                         </select>
                                     </td>
                                     <td class="text-center" role="gridcell">
-                                        <input type="date" name="{{ formset.prefix }}-{{ forloop.counter0 }}-fecha_caducidad" class="form-control form-control-sm" value="{% if f.instance.fecha_caducidad %}{{ f.instance.fecha_caducidad|date:'Y-m-d' }}{% endif %}" aria-label="Fecha de caducidad fila {{ forloop.counter }}">
+                                        <input type="date" name="{{ formset.prefix }}-{{ forloop.counter0 }}-fecha_caducidad" class="form-control form-control-sm fecha-caducidad-input" value="{% if f.instance.fecha_caducidad %}{{ f.instance.fecha_caducidad|date:'Y-m-d' }}{% endif %}" aria-label="Fecha de caducidad fila {{ forloop.counter }}" title="Mínimo 5 días de caducidad">
                                     </td>
                                     <td class="text-center fw-bold" role="gridcell">
                                         <span class="subtotal-display">$0</span>
@@ -224,6 +225,7 @@
 {% block extra_js %}
 <script type="application/json" id="productosData">{{ all_products_json|safe }}</script>
 <script type="application/json" id="tasasIVAData">{{ tasas_iva_json|safe }}</script>
+<script type="application/json" id="categoriasData">{{ categorias_json|default:"[]"|safe }}</script>
 <script>
     const cancelUrl = "{% url 'suppliers:reabastecimiento_list' %}";
     
@@ -246,6 +248,62 @@
     // Datos de tasas de IVA
     const tasasIVAData = JSON.parse(document.getElementById('tasasIVAData').textContent || '[]');
     console.log('Tasas de IVA cargadas:', tasasIVAData);
+    
+    // Validar fecha de caducidad (mínimo 5 días de caducidad)
+    function validateFechaCaducidad(dateInput) {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const selectedDate = dateInput.value ? new Date(dateInput.value + 'T00:00:00') : null;
+        
+        // Limpiar estilos previos
+        dateInput.classList.remove('is-invalid', 'is-valid', 'border-warning');
+        const existingFeedback = dateInput.parentElement.querySelector('.invalid-feedback, .warning-feedback');
+        if (existingFeedback) existingFeedback.remove();
+        
+        if (!dateInput.value) {
+            dateInput.classList.add('is-invalid');
+            const feedback = document.createElement('div');
+            feedback.className = 'invalid-feedback d-block';
+            feedback.textContent = 'Fecha requerida';
+            dateInput.parentElement.appendChild(feedback);
+            return false;
+        }
+        
+        // Calcular días de diferencia desde HOY
+        const diffDays = Math.ceil((selectedDate - today) / (1000 * 60 * 60 * 24));
+        
+        // Calcular fecha mínima (hoy + 5 días)
+        const minDate = new Date(today);
+        minDate.setDate(today.getDate() + 5);
+        const minDateStr = minDate.toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        
+        if (diffDays < 5) {
+            dateInput.classList.add('is-invalid');
+            const feedback = document.createElement('div');
+            feedback.className = 'invalid-feedback d-block';
+            feedback.textContent = `Mínimo 5 días de caducidad. Fecha mínima: ${minDateStr}`;
+            dateInput.parentElement.appendChild(feedback);
+            return false;
+        } else if (diffDays < 15) {
+            dateInput.classList.add('border-warning');
+            dateInput.style.borderColor = '#ffc107';
+            const feedback = document.createElement('div');
+            feedback.className = 'warning-feedback d-block text-warning small mt-1';
+            feedback.textContent = `⚠️ Caducidad cercana (${diffDays} días)`;
+            dateInput.parentElement.appendChild(feedback);
+            return true;
+        } else {
+            dateInput.classList.add('is-valid');
+            return true;
+        }
+    }
+    
+    // Validar fechas al cambiar
+    document.addEventListener('change', function(e) {
+        if (e.target.type === 'date' && e.target.name.includes('fecha_caducidad')) {
+            validateFechaCaducidad(e.target);
+        }
+    });
     
     // Calcular totales en vivo
     document.addEventListener('input', function(e) {
@@ -396,6 +454,17 @@
         console.log('DOMContentLoaded - Inicializando IVA');
         console.log('Tasas de IVA disponibles:', tasasIVAData);
         
+        // Establecer fecha mínima (5 días desde hoy) para todos los campos de fecha
+        const today = new Date();
+        const minDate = new Date(today);
+        minDate.setDate(today.getDate() + 5);
+        const minDateStr = minDate.toISOString().split('T')[0];
+        
+        document.querySelectorAll('input[type="date"][name*="fecha_caducidad"]').forEach(dateInput => {
+            dateInput.setAttribute('min', minDateStr);
+            console.log(`Fecha mínima establecida: ${minDateStr}`);
+        });
+        
         // Inicializar IVA para todos los productos ya seleccionados
         document.querySelectorAll('tbody tr').forEach((row, rowIndex) => {
             const ivaSelect = row.querySelector('.iva-select');
@@ -415,43 +484,35 @@
             // Llenar el select con las opciones de IVA
             populateIVASelect(ivaSelect, tasaIvaId);
             
-            // Si hay un valor de IVA guardado (incluso si es 0), calcular el porcentaje y seleccionar la tasa correcta
-            if (ivaValueSaved >= 0 && cantidadInput && costoInput) {
-                const cantidad = parseFloat(cantidadInput.value) || 0;
-                const costo = parseFloat(costoInput.value) || 0;
-                const subtotal = cantidad * costo;
+            // Usar el tasaIvaId del producto para seleccionar el IVA correcto
+            if (tasaIvaId) {
+                // Seleccionar directamente usando el ID de la tasa de IVA del producto
+                ivaSelect.value = tasaIvaId;
+                console.log(`Fila ${rowIndex}: IVA seleccionado usando tasaIvaId=${tasaIvaId}`);
                 
-                if (subtotal > 0) {
-                    const ivaPorcentaje = (ivaValueSaved / subtotal) * 100;
+                // Verificar que se seleccionó correctamente
+                if (ivaSelect.value === tasaIvaId) {
+                    console.log(`Fila ${rowIndex}: ✓ IVA seleccionado correctamente: ${ivaSelect.options[ivaSelect.selectedIndex].text}`);
                     
-                    console.log(`Fila ${rowIndex}: cantidad=${cantidad}, costo=${costo}, subtotal=${subtotal}, ivaValue=${ivaValueSaved}, ivaPorcentaje=${ivaPorcentaje}%`);
-                    
-                    // Buscar la tasa de IVA que coincida con este porcentaje
-                    let found = false;
-                    for (let option of ivaSelect.options) {
-                        if (option.dataset.porcentaje) {
-                            const optionPorcentaje = parseFloat(option.dataset.porcentaje);
-                            if (Math.abs(optionPorcentaje - ivaPorcentaje) < 0.01) {
-                                ivaSelect.value = option.value;
-                                // Forzar actualización visual
-                                ivaSelect.dispatchEvent(new Event('change', { bubbles: true }));
-                                console.log(`Fila ${rowIndex}: Encontrada tasa exacta: ${optionPorcentaje}%, option.value=${option.value}, ivaSelect.value=${ivaSelect.value}`);
-                                console.log(`Fila ${rowIndex}: Select text: ${ivaSelect.options[ivaSelect.selectedIndex].text}`);
-                                found = true;
-                                break;
-                            }
+                    // Recalcular el IVA con los valores actuales
+                    if (cantidadInput && costoInput) {
+                        const cantidad = parseFloat(cantidadInput.value) || 0;
+                        const costo = parseFloat(costoInput.value) || 0;
+                        const subtotal = cantidad * costo;
+                        const selectedOption = ivaSelect.options[ivaSelect.selectedIndex];
+                        
+                        if (selectedOption && selectedOption.dataset.porcentaje) {
+                            const ivaPorcentaje = parseFloat(selectedOption.dataset.porcentaje);
+                            const ivaCalculado = subtotal * (ivaPorcentaje / 100);
+                            ivaField.value = ivaCalculado.toFixed(2);
+                            console.log(`Fila ${rowIndex}: IVA recalculado: ${ivaPorcentaje}% de ${subtotal} = ${ivaCalculado}`);
                         }
                     }
-                    
-                    // Si no encontró coincidencia exacta, no hacer nada y dejar el default del producto.
-                    if (!found) {
-                        console.log(`Fila ${rowIndex}: No se encontró coincidencia exacta para ${ivaPorcentaje}%. Se usará el IVA por defecto del producto.`);
-                    }
                 } else {
-                    console.log(`Fila ${rowIndex}: Subtotal es 0, no se puede calcular porcentaje`);
+                    console.log(`Fila ${rowIndex}: ✗ Error al seleccionar IVA con tasaIvaId=${tasaIvaId}`);
                 }
             } else {
-                console.log(`Fila ${rowIndex}: No hay IVA guardado (ivaValueSaved=${ivaValueSaved})`);
+                console.log(`Fila ${rowIndex}: No hay tasaIvaId definido para este producto`);
             }
         });
         calculateTotals();
@@ -463,6 +524,25 @@
         console.log('=== SUBMIT FORM ===');
         
         const form = this;
+        
+        // Validar todas las fechas de caducidad antes de enviar
+        let fechasValidas = true;
+        const fechaInputs = form.querySelectorAll('input[type="date"][name*="fecha_caducidad"]');
+        fechaInputs.forEach(dateInput => {
+            if (!validateFechaCaducidad(dateInput)) {
+                fechasValidas = false;
+            }
+        });
+        
+        if (!fechasValidas) {
+            Swal.fire({
+                icon: 'error',
+                title: 'Fechas inválidas',
+                text: 'Por favor corrige las fechas de caducidad. Deben ser mínimo 5 días a partir de hoy.',
+                confirmButtonColor: '#dc3545'
+            });
+            return;
+        }
         
         // No hacer nada aquí - el IVA ya está en el campo oculto
         // El evento change del select ya actualiza el IVA cuando cambia
@@ -611,4 +691,6 @@
         }, 5000);
     }
 </script>
+<script src="{% static 'suppliers/js/reabastecimiento_editar_fix.js' %}"></script>
 {% endblock %}
+

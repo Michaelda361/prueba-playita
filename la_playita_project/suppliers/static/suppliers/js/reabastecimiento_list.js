@@ -339,22 +339,21 @@ document.addEventListener('DOMContentLoaded', function () {
             // Populate table
             const tbody = document.getElementById('receptionTableBody');
             tbody.innerHTML = data.detalles.map(detalle => {
-                // Parsear fecha como local para evitar problemas de zona horaria
-                let fechaCaducidad = 'N/A';
-                if (detalle.fecha_caducidad) {
-                    const [year, month, day] = detalle.fecha_caducidad.split('-');
-                    const date = new Date(year, month - 1, day);
-                    fechaCaducidad = date.toLocaleDateString('es-CO');
-                }
+                // Usar la fecha de caducidad existente o vacío
+                const fechaCaducidad = detalle.fecha_caducidad || '';
+                
                 return `
                 <tr data-detalle-id="${detalle.id}">
                     <td>${detalle.producto_nombre}</td>
                     <td class="text-center">${detalle.cantidad}</td>
                     <td class="text-center">
                         <input type="number" class="form-control form-control-sm cantidad-input" 
-                               value="${detalle.cantidad_recibida}" min="0" max="${detalle.cantidad}">
+                               value="${detalle.cantidad_recibida || detalle.cantidad}" min="0" max="${detalle.cantidad}">
                     </td>
-                    <td class="text-center"><small>${fechaCaducidad}</small></td>
+                    <td class="text-center">
+                        <input type="date" class="form-control form-control-sm fecha-input" 
+                               value="${fechaCaducidad}" required>
+                    </td>
                 </tr>
             `}).join('');
 
@@ -428,9 +427,84 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
-    async function confirmReception() {
-        // TODO: Implement reception confirmation
-        showToast('Recepción confirmada', 'success');
+    async function confirmReception(id) {
+        console.log('[RECEPCION] Confirmando recepción para orden:', id);
+        
+        // Recopilar datos de la tabla
+        const rows = document.querySelectorAll('#receptionTableBody tr');
+        const detalles = [];
+        
+        rows.forEach(row => {
+            const detalleId = row.dataset.detalleId;
+            const cantidadInput = row.querySelector('.cantidad-input');
+            const fechaInput = row.querySelector('.fecha-input');
+            const cantidadRecibida = parseInt(cantidadInput.value) || 0;
+            const fechaCaducidad = fechaInput ? fechaInput.value : '';
+            
+            if (cantidadRecibida > 0) {
+                if (!fechaCaducidad) {
+                    throw new Error('Debes proporcionar una fecha de caducidad para todos los productos');
+                }
+                
+                detalles.push({
+                    id: detalleId,
+                    cantidad_recibida: cantidadRecibida,
+                    fecha_caducidad: fechaCaducidad,
+                    numero_lote: '' // Se generará automáticamente
+                });
+            }
+        });
+        
+        console.log('[RECEPCION] Datos a enviar:', detalles);
+        
+        if (detalles.length === 0) {
+            showToast('Debes recibir al menos 1 producto', 'warning');
+            return;
+        }
+        
+        // Deshabilitar botón y mostrar loading
+        const confirmBtn = document.getElementById('confirmReceptionBtn');
+        const originalText = confirmBtn.innerHTML;
+        confirmBtn.disabled = true;
+        confirmBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Procesando...';
+        
+        try {
+            const response = await fetch(`/suppliers/reabastecimientos/${id}/recibir/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                },
+                body: JSON.stringify({ detalles })
+            });
+            
+            const data = await response.json();
+            console.log('[RECEPCION] Respuesta del servidor:', data);
+            
+            if (!response.ok || data.error) {
+                throw new Error(data.error || 'Error al confirmar recepción');
+            }
+            
+            // Cerrar modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('receptionModal'));
+            if (modal) {
+                modal.hide();
+            }
+            
+            // Mostrar mensaje de éxito
+            showToast('Recepción confirmada ✓', 'success');
+            
+            // Recargar página después de un momento
+            setTimeout(() => {
+                location.reload();
+            }, 500);
+            
+        } catch (error) {
+            console.error('[RECEPCION] Error:', error);
+            showToast(error.message, 'danger');
+            confirmBtn.disabled = false;
+            confirmBtn.innerHTML = originalText;
+        }
     }
 
     // ===== UTILITY FUNCTIONS =====

@@ -25,41 +25,60 @@ class ReceptionManager {
     }
 
     setupEventListeners() {
-        // Botones principales
-        document.getElementById('markAllReceivedBtn')?.addEventListener('click', (e) => {
-            e.preventDefault();
-            this.markAllReceived();
-        });
-
-        document.getElementById('applyGeneralExpiryBtn')?.addEventListener('click', (e) => {
-            e.preventDefault();
-            this.applyGeneralExpiry();
-        });
-
-        document.getElementById('saveDraftBtn')?.addEventListener('click', (e) => {
-            e.preventDefault();
-            this.saveDraft();
-        });
-
-        document.getElementById('confirmReceptionBtn')?.addEventListener('click', (e) => {
-            e.preventDefault();
-            this.confirmReception();
-        });
-
-        document.getElementById('cancelReceptionBtn')?.addEventListener('click', (e) => {
-            e.preventDefault();
-            this.exitReceptionMode();
-        });
-
-        document.getElementById('closeReceptionDrawer')?.addEventListener('click', (e) => {
-            e.preventDefault();
-            this.exitReceptionMode();
-        });
-
-        document.getElementById('clearSearchBtn')?.addEventListener('click', (e) => {
-            e.preventDefault();
-            document.getElementById('searchProductInput').value = '';
-            this.filterTableBySearch('');
+        console.log('[RECEPCION] Configurando event listeners...');
+        
+        // Event delegation para botones que pueden cargarse dinámicamente
+        document.addEventListener('click', (e) => {
+            // Confirmar recepción
+            if (e.target.id === 'confirmReceptionBtn' || e.target.closest('#confirmReceptionBtn')) {
+                console.log('[RECEPCION] Click en botón confirmar detectado');
+                e.preventDefault();
+                this.confirmReception();
+                return;
+            }
+            
+            // Cancelar recepción
+            if (e.target.id === 'cancelReceptionBtn' || e.target.id === 'cancelReceptionBtn2' || 
+                e.target.id === 'closeReceptionDrawer' || e.target.closest('#cancelReceptionBtn') ||
+                e.target.closest('#cancelReceptionBtn2') || e.target.closest('#closeReceptionDrawer')) {
+                console.log('[RECEPCION] Click en botón cancelar detectado');
+                e.preventDefault();
+                this.exitReceptionMode();
+                return;
+            }
+            
+            // Marcar todos
+            if (e.target.id === 'markAllReceivedBtn' || e.target.closest('#markAllReceivedBtn')) {
+                console.log('[RECEPCION] Click en marcar todos detectado');
+                e.preventDefault();
+                this.markAllReceived();
+                return;
+            }
+            
+            // Aplicar fecha general
+            if (e.target.id === 'applyGeneralExpiryBtn' || e.target.closest('#applyGeneralExpiryBtn')) {
+                console.log('[RECEPCION] Click en aplicar fecha detectado');
+                e.preventDefault();
+                this.applyGeneralExpiry();
+                return;
+            }
+            
+            // Guardar borrador
+            if (e.target.id === 'saveDraftBtn' || e.target.closest('#saveDraftBtn')) {
+                console.log('[RECEPCION] Click en guardar borrador detectado');
+                e.preventDefault();
+                this.saveDraft();
+                return;
+            }
+            
+            // Limpiar búsqueda
+            if (e.target.id === 'clearSearchBtn' || e.target.closest('#clearSearchBtn')) {
+                console.log('[RECEPCION] Click en limpiar búsqueda detectado');
+                e.preventDefault();
+                document.getElementById('searchProductInput').value = '';
+                this.filterTableBySearch('');
+                return;
+            }
         });
 
         const searchInput = document.getElementById('searchProductInput');
@@ -546,12 +565,19 @@ class ReceptionManager {
     }
 
     confirmReception() {
-        if (!this.currentReceptionData) return;
+        console.log('[RECEPCION] Iniciando confirmación...');
+        
+        if (!this.currentReceptionData) {
+            console.error('[RECEPCION] No hay datos de recepción');
+            return;
+        }
 
         // Validar que al menos un producto esté completo o parcial
         const hasValidItems = Array.from(this.validationState.values()).some(
             v => v.quantity > 0
         );
+
+        console.log('[RECEPCION] Validación:', { hasValidItems, validationState: Array.from(this.validationState.entries()) });
 
         if (!hasValidItems) {
             this.showToast('Debes recibir al menos 1 producto', 'warning');
@@ -576,7 +602,7 @@ class ReceptionManager {
             }
         });
 
-        console.log('Datos a enviar:', { detalles });
+        console.log('[RECEPCION] Datos a enviar:', { detalles });
 
         // Mostrar loader
         const confirmBtn = document.getElementById('confirmReceptionBtn');
@@ -587,6 +613,9 @@ class ReceptionManager {
         // Enviar al servidor
         const container = document.getElementById('reabastecimiento-container');
         const url = container.dataset.recibirUrl.replace('0', this.currentReceptionData.id);
+        
+        console.log('[RECEPCION] URL:', url);
+        console.log('[RECEPCION] CSRF Token:', this.getCsrfToken());
 
         fetch(url, {
             method: 'POST',
@@ -596,29 +625,73 @@ class ReceptionManager {
             },
             body: JSON.stringify({ detalles })
         })
-            .then(response => response.json())
+            .then(response => {
+                console.log('[RECEPCION] Respuesta recibida:', response.status, response.statusText);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
             .then(data => {
+                console.log('[RECEPCION] Datos recibidos:', data);
+                
                 if (data.error) {
+                    console.error('[RECEPCION] Error del servidor:', data.error);
                     this.showToast(data.error, 'danger');
                     confirmBtn.disabled = false;
                     confirmBtn.innerHTML = originalText;
-                } else {
+                } else if (data.message) {
+                    // Respuesta exitosa del backend
+                    console.log('[RECEPCION] ✓ Recepción confirmada exitosamente');
+                    console.log('[RECEPCION] Detalles recibidos:', data.detalles_recibidos);
+                    console.log('[RECEPCION] Discrepancias:', data.discrepancias);
+                    
                     this.showToast('Recepción confirmada ✓', 'success');
                     
                     // Limpiar borrador
                     const draftKey = `draft_${this.currentReceptionData.id}`;
                     localStorage.removeItem(draftKey);
 
-                    // Cerrar drawer y recargar tabla
+                    // Cerrar cualquier modal abierto (Bootstrap 5)
+                    const modals = document.querySelectorAll('.modal.show');
+                    modals.forEach(modal => {
+                        const modalInstance = bootstrap.Modal.getInstance(modal);
+                        if (modalInstance) {
+                            console.log('[RECEPCION] Cerrando modal:', modal.id);
+                            modalInstance.hide();
+                        }
+                    });
+                    
+                    // Cerrar offcanvas si existe
+                    const offcanvases = document.querySelectorAll('.offcanvas.show');
+                    offcanvases.forEach(offcanvas => {
+                        const offcanvasInstance = bootstrap.Offcanvas.getInstance(offcanvas);
+                        if (offcanvasInstance) {
+                            console.log('[RECEPCION] Cerrando offcanvas:', offcanvas.id);
+                            offcanvasInstance.hide();
+                        }
+                    });
+                    
+                    // Forzar cierre de backdrop
+                    document.querySelectorAll('.modal-backdrop').forEach(backdrop => {
+                        backdrop.remove();
+                    });
+
+                    // Recargar página
+                    console.log('[RECEPCION] Recargando página en 300ms...');
                     setTimeout(() => {
-                        this.exitReceptionMode();
                         location.reload();
-                    }, 1200);
+                    }, 300);
+                } else {
+                    console.error('[RECEPCION] Respuesta inesperada del servidor:', data);
+                    this.showToast('Error: Respuesta inesperada del servidor', 'danger');
+                    confirmBtn.disabled = false;
+                    confirmBtn.innerHTML = originalText;
                 }
             })
             .catch(error => {
-                console.error('Error:', error);
-                this.showToast('Error al confirmar recepción', 'danger');
+                console.error('[RECEPCION] ✗ Error en fetch:', error);
+                this.showToast('Error al confirmar recepción: ' + error.message, 'danger');
                 confirmBtn.disabled = false;
                 confirmBtn.innerHTML = originalText;
             });

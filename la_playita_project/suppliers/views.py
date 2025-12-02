@@ -446,7 +446,8 @@ def reabastecimiento_create(request):
                                 
                                 # Usar el IVA del formulario, que ahora se calcula en el frontend
                                 iva_detalle = detalle_form.get('iva', 0)
-                                if iva_detalle is None:
+                                
+                                if iva_detalle is None or iva_detalle == 0:
                                     # Fallback por si el frontend no envía el IVA
                                     iva_porcentaje = producto.tasa_iva.porcentaje if producto.tasa_iva else 0
                                     iva_detalle = subtotal * (iva_porcentaje / 100)
@@ -529,11 +530,16 @@ def reabastecimiento_create(request):
     tasas_iva_queryset = TasaIVA.objects.all().order_by('porcentaje')
     tasas_iva_list = [{'id': t.id, 'porcentaje': float(t.porcentaje), 'nombre': t.nombre} for t in tasas_iva_queryset]
     
+    # Obtener todas las categorías de la base de datos
+    categorias_queryset = Categoria.objects.all().order_by('nombre')
+    categorias_list = [{'id': c.id, 'nombre': c.nombre} for c in categorias_queryset]
+    
     context = {
         'form': form,
         'formset': formset,
         'all_products_json': json.dumps(all_products_data, cls=DjangoJSONEncoder),
         'tasas_iva_json': json.dumps(tasas_iva_list, cls=DjangoJSONEncoder),
+        'categorias_json': json.dumps(categorias_list, cls=DjangoJSONEncoder),
         'recent_suppliers': recent_suppliers,
         'search_suppliers_url': reverse('suppliers:search_suppliers_ajax'),
         'search_products_url': reverse('suppliers:search_products_ajax'),
@@ -570,12 +576,17 @@ def reabastecimiento_editar(request, pk):
         tasas_iva_queryset = TasaIVA.objects.all().order_by('porcentaje')
         tasas_iva_list = [{'id': t.id, 'porcentaje': float(t.porcentaje), 'nombre': t.nombre} for t in tasas_iva_queryset]
         
+        # Obtener todas las categorías de la base de datos
+        categorias_queryset = Categoria.objects.all().order_by('nombre')
+        categorias_list = [{'id': c.id, 'nombre': c.nombre} for c in categorias_queryset]
+        
         context = {
             'reabastecimiento': reab,
             'form': form,
             'formset': formset,
             'all_products_json': json.dumps(all_products_data, cls=DjangoJSONEncoder),
             'tasas_iva_json': json.dumps(tasas_iva_list, cls=DjangoJSONEncoder),
+            'categorias_json': json.dumps(categorias_list, cls=DjangoJSONEncoder),
         }
         return render(request, 'suppliers/reabastecimiento_editar.html', context)
     except Reabastecimiento.DoesNotExist:

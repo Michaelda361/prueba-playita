@@ -26,6 +26,36 @@ def subtract(value, arg):
         except (ValueError, TypeError):
             return ''
 
+@register.filter
+def multiply(value, arg):
+    """
+    Multiplica dos números.
+    """
+    try:
+        return float(value) * float(arg)
+    except (ValueError, TypeError):
+        return 0
+
+@register.filter
+def divide(value, arg):
+    """
+    Divide dos números.
+    """
+    try:
+        result = float(value) / float(arg)
+        return int(result)
+    except (ValueError, TypeError, ZeroDivisionError):
+        return 0
+
+@register.filter
+def count_received(detalles_queryset):
+    """
+    Cuenta cuántos detalles tienen cantidad_recibida > 0.
+    """
+    if not detalles_queryset:
+        return 0
+    return sum(1 for d in detalles_queryset if d.cantidad_recibida > 0)
+
 @register.simple_tag
 def get_estado_reabastecimiento_display(estado):
     """
@@ -35,6 +65,7 @@ def get_estado_reabastecimiento_display(estado):
         'solicitado': ('warning', 'Solicitado'),
         'recibido': ('success', 'Recibido'),
         'cancelado': ('danger', 'Cancelado'),
+        'borrador': ('secondary', 'Borrador'),
     }
     
     color, label = estado_map.get(estado, ('secondary', estado))

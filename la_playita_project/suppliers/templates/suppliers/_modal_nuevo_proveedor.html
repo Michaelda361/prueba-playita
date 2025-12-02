@@ -7,36 +7,101 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
-                <form id="nuevoProveedorForm">
+                <form id="nuevoProveedorForm" novalidate>
                     <div class="mb-3">
                         <label class="form-label">Tipo de Documento <span class="text-danger">*</span></label>
                         <select class="form-select" id="tipoDocumentoEmpresa" required>
-                            <option value="NIT" selected>NIT</option>
-                            <option value="RUT">RUT</option>
-                            <option value="CC">Cédula de Ciudadanía</option>
-                            <option value="CE">Cédula de Extranjería</option>
+                            <option value="">Seleccionar...</option>
+                            <option value="NIT">NIT - Número de Identificación Tributaria</option>
+                            <option value="RUT">RUT - Registro Único Tributario</option>
+                            <option value="CC">CC - Cédula de Ciudadanía</option>
+                            <option value="CE">CE - Cédula de Extranjería</option>
                             <option value="PAS">Pasaporte</option>
                         </select>
+                        <div class="invalid-feedback">Selecciona un tipo de documento</div>
                     </div>
+                    
                     <div class="mb-3">
                         <label class="form-label">Nº Documento de Identificación <span class="text-danger">*</span></label>
-                        <input type="text" class="form-control" id="documentoIdentificacionEmpresa" maxlength="20" required>
+                        <input type="text" 
+                               class="form-control" 
+                               id="documentoIdentificacionEmpresa" 
+                               placeholder="Ej: 900123456-7 (NIT) o 1234567890 (CC)"
+                               maxlength="20" 
+                               required>
+                        <small class="form-text text-muted">
+                            <i class="fas fa-info-circle me-1"></i>
+                            Para NIT incluye el dígito de verificación (Ej: 900123456-7)
+                        </small>
+                        <div class="invalid-feedback">Ingresa el número de documento</div>
                     </div>
+                    
                     <div class="mb-3">
                         <label class="form-label">Nombre Empresa <span class="text-danger">*</span></label>
-                        <input type="text" class="form-control" id="nombreEmpresa" maxlength="100" required>
+                        <input type="text" 
+                               class="form-control" 
+                               id="nombreEmpresa" 
+                               placeholder="Ej: Distribuidora La Playita S.A.S."
+                               maxlength="100" 
+                               required>
+                        <small class="form-text text-muted">
+                            <i class="fas fa-info-circle me-1"></i>
+                            Nombre completo o razón social de la empresa
+                        </small>
+                        <div class="invalid-feedback">Ingresa el nombre de la empresa</div>
                     </div>
+                    
                     <div class="mb-3">
                         <label class="form-label">Teléfono <span class="text-danger">*</span></label>
-                        <input type="tel" class="form-control" id="telefonoEmpresa" maxlength="50" required>
+                        <input type="tel" 
+                               class="form-control" 
+                               id="telefonoEmpresa" 
+                               placeholder="Ej: 3001234567 o (601) 1234567"
+                               maxlength="50" 
+                               pattern="[0-9\s\(\)\-\+]+"
+                               required>
+                        <small class="form-text text-muted">
+                            <i class="fas fa-info-circle me-1"></i>
+                            Teléfono de contacto (celular o fijo con indicativo)
+                        </small>
+                        <div class="invalid-feedback">Ingresa un teléfono válido (solo números, espacios, paréntesis y guiones)</div>
                     </div>
+                    
                     <div class="mb-3">
-                        <label class="form-label">Correo</label>
-                        <input type="email" class="form-control" id="correoEmpresa" maxlength="50">
+                        <label class="form-label">Correo Electrónico</label>
+                        <input type="email" 
+                               class="form-control" 
+                               id="correoEmpresa" 
+                               placeholder="Ej: ventas@empresa.com"
+                               maxlength="50">
+                        <small class="form-text text-muted">
+                            <i class="fas fa-info-circle me-1"></i>
+                            Correo de contacto del proveedor (opcional)
+                        </small>
+                        <div class="invalid-feedback">Ingresa un correo válido</div>
                     </div>
+                    
                     <div class="mb-3">
                         <label class="form-label">Dirección <span class="text-danger">*</span></label>
-                        <input type="text" class="form-control" id="direccionEmpresa" maxlength="255" required>
+                        <input type="text" 
+                               class="form-control" 
+                               id="direccionEmpresa" 
+                               placeholder="Ej: Calle 123 #45-67, Barrio Centro, Bogotá"
+                               maxlength="255" 
+                               required>
+                        <small class="form-text text-muted">
+                            <i class="fas fa-info-circle me-1"></i>
+                            Dirección completa incluyendo ciudad
+                        </small>
+                        <div class="invalid-feedback">Ingresa la dirección completa</div>
+                    </div>
+                    
+                    <div class="alert alert-info d-flex align-items-start" role="alert">
+                        <i class="fas fa-lightbulb me-2 mt-1"></i>
+                        <div>
+                            <strong>Tip:</strong> Asegúrate de verificar los datos antes de guardar. 
+                            Los campos marcados con <span class="text-danger">*</span> son obligatorios.
+                        </div>
                     </div>
                 </form>
             </div>

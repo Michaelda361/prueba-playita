@@ -1,3 +1,6 @@
+<!-- Script con categorías desde el backend -->
+<script type="application/json" id="categoriasData">{{ categorias_json|default:"[]"|safe }}</script>
+
 <!-- Modal Nuevo Producto -->
 <div class="modal fade" id="nuevoProductoModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog">
@@ -7,38 +10,82 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
-                <form id="nuevoProductoForm">
+                <form id="nuevoProductoForm" novalidate>
                     <div class="mb-3">
-                        <label class="form-label">Nombre <span class="text-danger">*</span></label>
-                        <input type="text" class="form-control" id="nombreProducto" maxlength="50" required>
+                        <label class="form-label">Nombre del Producto <span class="text-danger">*</span></label>
+                        <input type="text" 
+                               class="form-control" 
+                               id="nombreProducto" 
+                               placeholder="Ej: Cerveza Corona 355ml"
+                               maxlength="50" 
+                               required>
+                        <small class="form-text text-muted">
+                            <i class="fas fa-info-circle me-1"></i>
+                            Nombre descriptivo del producto
+                        </small>
+                        <div class="invalid-feedback">Ingresa el nombre del producto</div>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Categoría <span class="text-danger">*</span></label>
                         <div class="input-group">
                             <select class="form-select" id="categoriaProducto" required>
-                                {% for categoria in categorias %}
-                                <option value="{{ categoria.id }}">{{ categoria.nombre }}</option>
-                                {% endfor %}
+                                <option value="">Cargando categorías...</option>
                             </select>
-                            <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#nuevaCategoriaModal">
+                            <button type="button" class="btn btn-outline-primary" id="btnNuevaCategoria" title="Nueva Categoría">
                                 <i class="fas fa-plus"></i>
                             </button>
                         </div>
+                        <small class="form-text text-muted">
+                            <i class="fas fa-info-circle me-1"></i>
+                            Selecciona la categoría del producto o crea una nueva
+                        </small>
+                        <div class="invalid-feedback">Selecciona una categoría</div>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Precio Unitario <span class="text-danger">*</span></label>
                         <div class="input-group">
                             <span class="input-group-text">$</span>
-                            <input type="number" class="form-control" id="precioProducto" step="1" min="0" required>
+                            <input type="number" 
+                                   class="form-control" 
+                                   id="precioProducto" 
+                                   placeholder="Ej: 5000"
+                                   step="1" 
+                                   min="0" 
+                                   required>
                         </div>
+                        <small class="form-text text-muted">
+                            <i class="fas fa-info-circle me-1"></i>
+                            Precio de venta al público (sin decimales)
+                        </small>
+                        <div class="invalid-feedback">Ingresa un precio válido mayor a 0</div>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">Stock Mínimo <span class="text-danger">*</span></label>
-                        <input type="number" class="form-control" id="stockMinProducto" min="0" required>
-                    </div>
+                    
+                    <!-- Stock mínimo oculto - se asigna automáticamente -->
+                    <input type="hidden" id="stockMinProducto" value="5">
+                    
                     <div class="mb-3">
                         <label class="form-label">Descripción</label>
-                        <textarea class="form-control" id="descripcionProducto" maxlength="255" rows="2"></textarea>
+                        <textarea class="form-control" 
+                                  id="descripcionProducto" 
+                                  placeholder="Ej: Cerveza importada, presentación botella de vidrio"
+                                  maxlength="255" 
+                                  rows="2"></textarea>
+                        <small class="form-text text-muted">
+                            <i class="fas fa-info-circle me-1"></i>
+                            Descripción adicional del producto (opcional)
+                        </small>
+                    </div>
+                    
+                    <div class="alert alert-info d-flex align-items-start" role="alert">
+                        <i class="fas fa-lightbulb me-2 mt-1"></i>
+                        <div>
+                            <strong>Tip:</strong> El producto se creará con:
+                            <ul class="mb-0 mt-1">
+                                <li>IVA General (19%) por defecto</li>
+                                <li>Stock mínimo de 5 unidades</li>
+                            </ul>
+                            Puedes cambiar estos valores después desde el módulo de inventario.
+                        </div>
                     </div>
                 </form>
             </div>

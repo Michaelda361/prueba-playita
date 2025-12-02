@@ -1,6 +1,5 @@
 {% load reabastecimiento_extras %}
 {% load humanize %}
-{% load currency_format %}
 
 {% with total_detalles=r.reabastecimientodetalle_set.count %}
 <tr id="reabastecimiento-row-{{ r.id }}" class="reabastecimiento-row" data-reabastecimiento-id="{{ r.id }}" data-estado="{{ r.estado }}">

@@ -174,9 +174,10 @@
                                     <td class="text-center" role="gridcell">{% render_field f.cantidad class="form-control form-control-sm cantidad-input text-center" aria-label="Cantidad fila {{ forloop.counter }}" placeholder="0" %}</td>
                                     <td class="text-center" role="gridcell">{% render_field f.costo_unitario class="form-control form-control-sm costo-unitario-input text-center" aria-label="Costo unitario fila {{ forloop.counter }}" placeholder="0" %}</td>
                                     <td class="text-center" role="gridcell">
-                <select class="form-select form-select-sm iva-select text-center" name="{{ f.iva.html_name }}" aria-label="IVA fila {{ forloop.counter }}">
+                                        <select class="form-select form-select-sm iva-select text-center" data-tasa-iva-select aria-label="IVA fila {{ forloop.counter }}">
                                             <option value="">--</option>
                                         </select>
+                                        <input type="hidden" name="reabastecimientodetalle_set-{{ forloop.counter0 }}-iva" class="iva-field" value="0">
                                     </td>
                                     <td class="text-center" role="gridcell">{% render_field f.fecha_caducidad class="form-control form-control-sm" aria-label="Fecha de caducidad fila {{ forloop.counter }}" %}</td>
                                     <td class="text-center fw-bold" role="gridcell">
@@ -205,9 +206,10 @@
                                 <td role="gridcell">{% render_field ef.cantidad class="form-control form-control-sm cantidad-input text-center" placeholder="0" %}</td>
                                 <td role="gridcell">{% render_field ef.costo_unitario class="form-control form-control-sm costo-unitario-input text-center" placeholder="0" %}</td>
                                 <td role="gridcell">
-                                    <select class="form-select form-select-sm iva-select text-center" name="{{ ef.iva.html_name }}">
+                                    <select class="form-select form-select-sm iva-select text-center" data-tasa-iva-select>
                                         <option value="">--</option>
                                     </select>
+                                    <input type="hidden" name="reabastecimientodetalle_set-__prefix__-iva" class="iva-field" value="0">
                                 </td>
                                 <td role="gridcell">{% render_field ef.fecha_caducidad class="form-control form-control-sm" %}</td>
                                 <td role="gridcell">
@@ -330,6 +332,7 @@
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 <script data-productos type="application/json">{{ all_products_json|default:"[]"|safe }}</script>
 <script data-tasas-iva type="application/json">{{ tasas_iva_json|default:"[]"|safe }}</script>
+<script type="application/json" id="categoriasData">{{ categorias_json|default:"[]"|safe }}</script>
 <script>
     const cancelUrl = "{% url 'suppliers:reabastecimiento_list' %}";
     
@@ -359,7 +362,6 @@
     });
 </script>
 <script src="{% static 'suppliers/js/reabastecimiento_create_v2.js' %}" defer></script>
-<script src="{% static 'suppliers/js/reabastecimiento_create_optimized.js' %}" defer></script>
 
 <script>
 // Manejo de importación Excel

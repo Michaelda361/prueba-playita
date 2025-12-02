@@ -15,6 +15,8 @@ class ReabastecimientoForm {
         this.tasasIva = JSON.parse(document.querySelector('script[data-tasas-iva]')?.textContent || '[]');
         this.productMap = new Map(this.productos.map(p => [p.id, p]));
         
+        this.isSubmitting = false; // Flag para controlar el envío
+        
         this.init();
     }
 
@@ -127,7 +129,16 @@ class ReabastecimientoForm {
 
         document.addEventListener('change', (e) => {
             if (e.target.classList.contains('iva-select')) {
+                // Validar que se haya seleccionado una opción
+                if (e.target.value) {
+                    e.target.classList.add('is-valid');
+                    e.target.classList.remove('is-invalid');
+                } else {
+                    e.target.classList.add('is-invalid');
+                    e.target.classList.remove('is-valid');
+                }
                 this.calculateTotals();
+                this.validateForm();
             }
         });
 
@@ -151,8 +162,9 @@ class ReabastecimientoForm {
             guardarBorradorBtn.addEventListener('click', (e) => this.handleSaveDraft(e));
         }
 
-        // Form submission
-        this.form.addEventListener('submit', (e) => this.handleSubmit(e));
+        // Form submission - usar bind para mantener el contexto
+        this.boundHandleSubmit = this.handleSubmit.bind(this);
+        this.form.addEventListener('submit', this.boundHandleSubmit);
     }
 
     
@@ -305,13 +317,19 @@ class ReabastecimientoForm {
             costoInput.classList.remove('is-invalid');
         }
 
-        // Auto-fill IVA
+        // NO auto-llenar IVA - dejar en "--" para que el usuario seleccione manualmente
         const ivaSelect = row.querySelector('.iva-select');
-        const ivaId = producto.tasa_iva_id || '';
         
         if (ivaSelect) {
-            ivaSelect.value = ivaId;
-            ivaSelect.classList.add('is-valid');
+            // Resetear a la opción placeholder (--) 
+            ivaSelect.value = '';
+            ivaSelect.classList.remove('is-valid', 'is-invalid');
+            
+            // Opcional: Resaltar brevemente el campo IVA para que el usuario note que debe seleccionarlo
+            ivaSelect.style.backgroundColor = '#fff3cd'; // Color amarillo suave
+            setTimeout(() => {
+                ivaSelect.style.backgroundColor = '';
+            }, 1000);
         }
 
         // Sugerir cantidad basada en stock actual (si está disponible)
@@ -336,7 +354,7 @@ class ReabastecimientoForm {
         let grandSubtotal = 0;
         let grandIva = 0;
 
-        this.detalleTable.querySelectorAll('tbody tr.formset-row').forEach(row => {
+        this.detalleTable.querySelectorAll('tbody tr.formset-row').forEach((row, index) => {
             const cantidadInput = row.querySelector('.cantidad-input');
             const costoInput = row.querySelector('.costo-unitario-input');
             const ivaSelect = row.querySelector('.iva-select');
@@ -354,7 +372,7 @@ class ReabastecimientoForm {
                 const total = subtotal + iva;
 
                 // Update hidden IVA field for form submission
-                const ivaField = row.querySelector('.iva-field');
+                const ivaField = row.querySelector('input.iva-field');
                 if (ivaField) {
                     ivaField.value = iva.toFixed(2);
                 }
@@ -436,6 +454,15 @@ class ReabastecimientoForm {
             } else {
                 errorType = 'success';
             }
+        } else if (field.classList.contains('iva-select')) {
+            // Validar que se haya seleccionado un IVA (no el placeholder)
+            if (!field.value || field.value === '') {
+                isValid = false;
+                errorMsg = 'Selecciona un IVA';
+                errorType = 'error';
+            } else {
+                errorType = 'success';
+            }
         } else if (field.type === 'date') {
             const today = new Date();
             today.setHours(0, 0, 0, 0);
@@ -445,17 +472,28 @@ class ReabastecimientoForm {
                 isValid = false;
                 errorMsg = 'Fecha requerida';
                 errorType = 'error';
-            } else if (selectedDate < today) {
-                isValid = false;
-                errorMsg = 'Fecha no puede ser pasada';
-                errorType = 'error';
             } else {
-                // Advertencia si la fecha es muy cercana (menos de 7 días)
+                // Calcular días de diferencia desde HOY
                 const diffDays = Math.ceil((selectedDate - today) / (1000 * 60 * 60 * 24));
-                if (diffDays < 7) {
-                    errorMsg = `Caducidad cercana (${diffDays} días)`;
+                
+                // Calcular fecha mínima (hoy + 5 días)
+                const minDate = new Date(today);
+                minDate.setDate(today.getDate() + 5);
+                const minDateStr = minDate.toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric' });
+                
+                // ERROR: Menos de 5 días de caducidad (no permitido)
+                if (diffDays < 5) {
+                    isValid = false;
+                    errorMsg = `Mínimo 5 días de caducidad. Fecha mínima: ${minDateStr}`;
+                    errorType = 'error';
+                }
+                // ADVERTENCIA: Entre 5 y 14 días (permitido pero con advertencia)
+                else if (diffDays < 15) {
+                    errorMsg = `⚠️ Caducidad cercana (${diffDays} días)`;
                     errorType = 'warning';
-                } else {
+                } 
+                // OK: 15 días o más
+                else {
                     errorType = 'success';
                 }
             }
@@ -541,9 +579,10 @@ class ReabastecimientoForm {
             const cantidad = row.querySelector('.cantidad-input');
             const costo = row.querySelector('.costo-unitario-input');
             const fecha = row.querySelector('[type="date"]');
+            const iva = row.querySelector('.iva-select');
 
             let rowValid = true;
-            [producto, cantidad, costo, fecha].forEach(field => {
+            [producto, cantidad, costo, iva, fecha].forEach(field => {
                 if (field && !this.validateField(field)) {
                     rowValid = false;
                     isValid = false;
@@ -563,7 +602,7 @@ class ReabastecimientoForm {
                 row.classList.remove('row-error', 'row-valid');
                 
                 // Limpiar validación de todos los campos de la fila
-                const fields = row.querySelectorAll('.producto-select, .cantidad-input, .costo-unitario-input, [type="date"]');
+                const fields = row.querySelectorAll('.producto-select, .cantidad-input, .costo-unitario-input, .iva-select, [type="date"]');
                 fields.forEach(field => {
                     field.classList.remove('is-invalid', 'is-valid');
                     this.clearFieldError(field);
@@ -731,7 +770,20 @@ class ReabastecimientoForm {
         }
         
         console.log('[BORRADOR] Enviando formulario...');
-        this.form.submit();
+        this.isSubmitting = true;
+        
+        // Remover el listener para evitar loop
+        this.form.removeEventListener('submit', this.boundHandleSubmit);
+        
+        // Esperar 1.5 segundos para que el usuario vea el feedback visual
+        setTimeout(() => {
+            // Crear un input submit oculto y hacer clic en él
+            const submitInput = document.createElement('input');
+            submitInput.type = 'submit';
+            submitInput.style.display = 'none';
+            this.form.appendChild(submitInput);
+            submitInput.click();
+        }, 1500);
     }
     
     handleCancel(e) {
@@ -760,10 +812,15 @@ class ReabastecimientoForm {
     }
 
     handleSubmit(e) {
+        // Si ya estamos enviando, permitir que continúe
+        if (this.isSubmitting) {
+            return true;
+        }
+        
+        e.preventDefault();
+        e.stopPropagation();
+        
         if (!this.validateForm()) {
-            e.preventDefault();
-            e.stopPropagation();
-            
             // Encontrar primer error
             const firstError = this.form.querySelector('.is-invalid');
             if (firstError) {
@@ -771,18 +828,29 @@ class ReabastecimientoForm {
                 setTimeout(() => firstError.focus(), 300);
                 this.showToast('Corrige los errores marcados en rojo', 'danger');
             }
-        } else {
-            // Mostrar confirmación antes de guardar
-            e.preventDefault();
-            const rows = this.detalleTable.querySelectorAll('tbody tr.formset-row');
-            const productCount = rows.length;
-            const total = document.getElementById('gran-total').textContent;
-            
-            // Enviar directamente sin confirmación adicional para mayor velocidad
-            this.guardarBtn.disabled = true;
-            this.guardarBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Enviando...';
-            this.form.submit();
+            return false;
         }
+        
+        // Validación pasó, enviar el formulario
+        this.guardarBtn.disabled = true;
+        this.guardarBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Enviando...';
+        
+        // Marcar que estamos enviando
+        this.isSubmitting = true;
+        
+        // Enviar el formulario de forma tradicional (no AJAX) para que Django maneje los mensajes
+        // Remover el listener para evitar loop
+        this.form.removeEventListener('submit', this.boundHandleSubmit);
+        
+        // Esperar 1.5 segundos para que el usuario vea el feedback visual
+        setTimeout(() => {
+            // Crear un input submit oculto y hacer clic en él
+            const submitInput = document.createElement('input');
+            submitInput.type = 'submit';
+            submitInput.style.display = 'none';
+            this.form.appendChild(submitInput);
+            submitInput.click();
+        }, 1500);
     }
 
     showToast(message, type = 'info') {
@@ -1000,18 +1068,20 @@ document.addEventListener('DOMContentLoaded', function() {
                         costoInput.dispatchEvent(new Event('input', { bubbles: true }));
                     }
                     
-                    // Poblar y seleccionar IVA
+                    // Poblar IVA pero NO seleccionar automáticamente - dejar en "--"
                     if (ivaSelect) {
                         // Poblar opciones de IVA
                         form.populateIvaSelects();
                         
-                        if (producto.tasa_iva_id) {
-                            setTimeout(() => {
-                                ivaSelect.value = producto.tasa_iva_id;
-                                console.log(`[EXCEL IMPORT] IVA: ${producto.tasa_iva_id}`);
-                                ivaSelect.dispatchEvent(new Event('change', { bubbles: true }));
-                            }, 100);
-                        }
+                        // NO auto-seleccionar el IVA - dejar en placeholder para que el usuario lo seleccione
+                        ivaSelect.value = '';
+                        console.log(`[EXCEL IMPORT] IVA dejado sin seleccionar (--) para que el usuario lo elija`);
+                        
+                        // Resaltar el campo para que el usuario note que debe seleccionarlo
+                        ivaSelect.style.backgroundColor = '#fff3cd'; // Amarillo suave
+                        setTimeout(() => {
+                            ivaSelect.style.backgroundColor = '';
+                        }, 1500);
                     }
                     
                     // Llenar fecha
@@ -1098,3 +1168,820 @@ document.addEventListener('DOMContentLoaded', function() {
         processProductos();
     };
 });
+
+
+// ============================================
+// MODAL NUEVO PROVEEDOR
+// ============================================
+document.addEventListener('DOMContentLoaded', function() {
+    const guardarProveedorBtn = document.getElementById('guardarProveedorBtn');
+    const form = document.getElementById('nuevoProveedorForm');
+    
+    if (form) {
+        // Validación en tiempo real
+        const inputs = form.querySelectorAll('input, select');
+        inputs.forEach(input => {
+            input.addEventListener('blur', function() {
+                validateField(this);
+            });
+            
+            input.addEventListener('input', function() {
+                if (this.classList.contains('is-invalid')) {
+                    validateField(this);
+                }
+            });
+        });
+        
+        // Validación específica para teléfono
+        const telefonoInput = document.getElementById('telefonoEmpresa');
+        if (telefonoInput) {
+            telefonoInput.addEventListener('input', function() {
+                // Permitir solo números, espacios, paréntesis, guiones y +
+                this.value = this.value.replace(/[^0-9\s\(\)\-\+]/g, '');
+            });
+        }
+        
+        // Validación específica para documento
+        const documentoInput = document.getElementById('documentoIdentificacionEmpresa');
+        if (documentoInput) {
+            documentoInput.addEventListener('input', function() {
+                // Permitir números, guiones y espacios
+                this.value = this.value.replace(/[^0-9\-\s]/g, '');
+            });
+        }
+    }
+    
+    function validateField(field) {
+        const value = field.value.trim();
+        let isValid = true;
+        
+        // Validar campo requerido
+        if (field.hasAttribute('required') && !value) {
+            isValid = false;
+        }
+        
+        // Validar email
+        if (field.type === 'email' && value) {
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            isValid = emailRegex.test(value);
+        }
+        
+        // Validar teléfono
+        if (field.id === 'telefonoEmpresa' && value) {
+            // Debe tener al menos 7 dígitos
+            const digitsOnly = value.replace(/\D/g, '');
+            isValid = digitsOnly.length >= 7;
+        }
+        
+        // Validar documento
+        if (field.id === 'documentoIdentificacionEmpresa' && value) {
+            // Debe tener al menos 5 caracteres
+            isValid = value.length >= 5;
+        }
+        
+        // Aplicar clases de validación
+        if (isValid) {
+            field.classList.remove('is-invalid');
+            field.classList.add('is-valid');
+        } else {
+            field.classList.remove('is-valid');
+            field.classList.add('is-invalid');
+        }
+        
+        return isValid;
+    }
+    
+    function validateForm() {
+        const inputs = form.querySelectorAll('input[required], select[required]');
+        let isValid = true;
+        
+        inputs.forEach(input => {
+            if (!validateField(input)) {
+                isValid = false;
+            }
+        });
+        
+        return isValid;
+    }
+    
+    if (guardarProveedorBtn) {
+        guardarProveedorBtn.addEventListener('click', async function() {
+            console.log('[PROVEEDOR] Guardando nuevo proveedor...');
+            
+            // Validar formulario
+            if (!validateForm()) {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Campos incompletos o inválidos',
+                    text: 'Por favor revisa los campos marcados en rojo',
+                    confirmButtonColor: '#0d6efd'
+                });
+                return;
+            }
+            
+            // Obtener valores del formulario
+            const tipoDocumento = document.getElementById('tipoDocumentoEmpresa').value;
+            const documentoIdentificacion = document.getElementById('documentoIdentificacionEmpresa').value.trim();
+            const nombreEmpresa = document.getElementById('nombreEmpresa').value.trim();
+            const telefono = document.getElementById('telefonoEmpresa').value.trim();
+            const correo = document.getElementById('correoEmpresa').value.trim();
+            const direccion = document.getElementById('direccionEmpresa').value.trim();
+            
+            // Validación adicional
+            if (!tipoDocumento) {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Tipo de documento requerido',
+                    text: 'Selecciona el tipo de documento',
+                    confirmButtonColor: '#0d6efd'
+                });
+                return;
+            }
+            
+            // Deshabilitar botón y mostrar loading
+            const originalText = guardarProveedorBtn.innerHTML;
+            guardarProveedorBtn.disabled = true;
+            guardarProveedorBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Guardando...';
+            
+            try {
+                const response = await fetch('/suppliers/proveedor/crear_ajax/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                    },
+                    body: JSON.stringify({
+                        tipo_documento: tipoDocumento,
+                        documento_identificacion: documentoIdentificacion,
+                        nombre_empresa: nombreEmpresa,
+                        telefono: telefono,
+                        correo: correo,
+                        direccion: direccion
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (!response.ok || data.error) {
+                    throw new Error(data.error || 'Error al crear proveedor');
+                }
+                
+                console.log('[PROVEEDOR] Proveedor creado:', data);
+                
+                // Agregar el nuevo proveedor al select
+                const proveedorSelect = document.getElementById('id_proveedor_select');
+                if (proveedorSelect) {
+                    const option = document.createElement('option');
+                    option.value = data.id;
+                    option.textContent = data.nombre_empresa;
+                    option.selected = true;
+                    proveedorSelect.appendChild(option);
+                    proveedorSelect.dispatchEvent(new Event('change'));
+                }
+                
+                // Cerrar modal
+                const modal = bootstrap.Modal.getInstance(document.getElementById('nuevoProveedorModal'));
+                if (modal) {
+                    modal.hide();
+                }
+                
+                // Limpiar formulario y validaciones
+                form.reset();
+                form.querySelectorAll('.is-valid, .is-invalid').forEach(el => {
+                    el.classList.remove('is-valid', 'is-invalid');
+                });
+                
+                // Mostrar mensaje de éxito
+                Swal.fire({
+                    icon: 'success',
+                    title: '¡Proveedor creado!',
+                    html: `
+                        <div class="text-start">
+                            <p class="mb-2"><strong>${data.nombre_empresa}</strong></p>
+                            <p class="mb-0 text-muted">ha sido agregado exitosamente</p>
+                        </div>
+                    `,
+                    timer: 2500,
+                    timerProgressBar: true,
+                    showConfirmButton: false
+                });
+                
+            } catch (error) {
+                console.error('[PROVEEDOR] Error:', error);
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error al crear proveedor',
+                    text: error.message,
+                    confirmButtonColor: '#dc3545'
+                });
+            } finally {
+                guardarProveedorBtn.disabled = false;
+                guardarProveedorBtn.innerHTML = originalText;
+            }
+        });
+    }
+    
+    // Limpiar validaciones al abrir el modal
+    const modal = document.getElementById('nuevoProveedorModal');
+    if (modal) {
+        modal.addEventListener('show.bs.modal', function() {
+            const form = document.getElementById('nuevoProveedorForm');
+            if (form) {
+                form.reset();
+                form.querySelectorAll('.is-valid, .is-invalid').forEach(el => {
+                    el.classList.remove('is-valid', 'is-invalid');
+                });
+            }
+        });
+    }
+});
+
+
+// ============================================
+// MODAL NUEVO PRODUCTO
+// ============================================
+document.addEventListener('DOMContentLoaded', function() {
+    const guardarProductoBtn = document.getElementById('guardarProductoBtn');
+    const productoForm = document.getElementById('nuevoProductoForm');
+    const categoriaSelect = document.getElementById('categoriaProducto');
+    
+    // Cargar categorías al abrir el modal
+    const productoModal = document.getElementById('nuevoProductoModal');
+    if (productoModal) {
+        productoModal.addEventListener('show.bs.modal', async function() {
+            await cargarCategorias();
+            
+            // Limpiar formulario
+            if (productoForm) {
+                productoForm.reset();
+                productoForm.querySelectorAll('.is-valid, .is-invalid').forEach(el => {
+                    el.classList.remove('is-valid', 'is-invalid');
+                });
+            }
+        });
+    }
+    
+    async function cargarCategorias() {
+        if (!categoriaSelect) return;
+        
+        console.log('[PRODUCTO] Cargando categorías...');
+        categoriaSelect.innerHTML = '<option value="">Cargando categorías...</option>';
+        
+        try {
+            // Estrategia 1: Leer desde el script JSON en el template (categorias_json)
+            const categoriasDataScript = document.getElementById('categoriasData');
+            if (categoriasDataScript) {
+                try {
+                    const categoriasData = JSON.parse(categoriasDataScript.textContent);
+                    if (categoriasData && categoriasData.length > 0) {
+                        categoriaSelect.innerHTML = '<option value="">Seleccionar categoría...</option>';
+                        categoriasData.forEach(cat => {
+                            const option = document.createElement('option');
+                            option.value = cat.id;
+                            option.textContent = cat.nombre;
+                            categoriaSelect.appendChild(option);
+                        });
+                        console.log('[PRODUCTO] ✓ Categorías cargadas desde backend:', categoriasData.length);
+                        return;
+                    }
+                } catch (e) {
+                    console.warn('[PRODUCTO] Error al parsear categorias_json:', e);
+                }
+            }
+            
+            // Estrategia 2: Extraer desde productos existentes en el select de productos
+            const productoSelects = document.querySelectorAll('.producto-select');
+            const categoriasMap = new Map();
+            
+            // Intentar extraer de los selects de productos que ya tienen opciones
+            productoSelects.forEach(select => {
+                select.querySelectorAll('option').forEach(option => {
+                    const categoriaId = option.dataset.categoriaId;
+                    const categoriaNombre = option.dataset.categoriaNombre;
+                    if (categoriaId && categoriaNombre) {
+                        categoriasMap.set(categoriaId, categoriaNombre);
+                    }
+                });
+            });
+            
+            if (categoriasMap.size > 0) {
+                categoriaSelect.innerHTML = '<option value="">Seleccionar categoría...</option>';
+                categoriasMap.forEach((nombre, id) => {
+                    const option = document.createElement('option');
+                    option.value = id;
+                    option.textContent = nombre;
+                    categoriaSelect.appendChild(option);
+                });
+                
+                console.log('[PRODUCTO] ✓ Categorías cargadas desde selects:', categoriasMap.size);
+                return;
+            }
+            
+            // Estrategia 3: Hacer petición AJAX al backend
+            try {
+                const response = await fetch('/inventory/categorias/list_ajax/');
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.categorias && data.categorias.length > 0) {
+                        categoriaSelect.innerHTML = '<option value="">Seleccionar categoría...</option>';
+                        data.categorias.forEach(cat => {
+                            const option = document.createElement('option');
+                            option.value = cat.id;
+                            option.textContent = cat.nombre;
+                            categoriaSelect.appendChild(option);
+                        });
+                        console.log('[PRODUCTO] ✓ Categorías cargadas desde API:', data.categorias.length);
+                        return;
+                    }
+                }
+            } catch (e) {
+                console.warn('[PRODUCTO] No se pudo cargar desde API:', e);
+            }
+            
+            // Estrategia 4: Usar categorías comunes por defecto
+            console.warn('[PRODUCTO] ⚠️ No se encontraron categorías, usando valores por defecto');
+            
+            // Cargar categorías comunes que probablemente existen
+            categoriaSelect.innerHTML = `
+                <option value="">Seleccionar categoría...</option>
+                <option value="1">Bebidas</option>
+                <option value="2">Alimentos</option>
+                <option value="3">Snacks</option>
+                <option value="4">Licores</option>
+                <option value="5">Lácteos</option>
+                <option value="6">Otros</option>
+            `;
+            
+            console.log('[PRODUCTO] ℹ️ Categorías comunes cargadas. Si no encuentras la que necesitas, créala con el botón +');
+            
+        } catch (error) {
+            console.error('[PRODUCTO] Error al cargar categorías:', error);
+            categoriaSelect.innerHTML = `
+                <option value="">Seleccionar categoría...</option>
+                <option value="1">Bebidas</option>
+                <option value="2">Alimentos</option>
+                <option value="3">Otros</option>
+            `;
+        }
+    }
+    
+    // Validación en tiempo real
+    if (productoForm) {
+        const inputs = productoForm.querySelectorAll('input, select, textarea');
+        inputs.forEach(input => {
+            input.addEventListener('blur', function() {
+                validateProductField(this);
+            });
+            
+            input.addEventListener('input', function() {
+                if (this.classList.contains('is-invalid')) {
+                    validateProductField(this);
+                }
+            });
+        });
+    }
+    
+    function validateProductField(field) {
+        const value = field.value.trim();
+        let isValid = true;
+        
+        // Validar campo requerido
+        if (field.hasAttribute('required') && !value) {
+            isValid = false;
+        }
+        
+        // Validar precio
+        if (field.id === 'precioProducto' && value) {
+            const precio = parseFloat(value);
+            isValid = precio > 0;
+        }
+        
+        // Validar stock mínimo
+        if (field.id === 'stockMinProducto' && value) {
+            const stock = parseInt(value);
+            isValid = stock >= 0;
+        }
+        
+        // Aplicar clases de validación
+        if (isValid) {
+            field.classList.remove('is-invalid');
+            field.classList.add('is-valid');
+        } else {
+            field.classList.remove('is-valid');
+            field.classList.add('is-invalid');
+        }
+        
+        return isValid;
+    }
+    
+    function validateProductForm() {
+        const inputs = productoForm.querySelectorAll('input[required], select[required]');
+        let isValid = true;
+        
+        inputs.forEach(input => {
+            if (!validateProductField(input)) {
+                isValid = false;
+            }
+        });
+        
+        return isValid;
+    }
+    
+    if (guardarProductoBtn) {
+        guardarProductoBtn.addEventListener('click', async function() {
+            console.log('[PRODUCTO] Guardando nuevo producto...');
+            
+            // Validar formulario
+            if (!validateProductForm()) {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Campos incompletos o inválidos',
+                    text: 'Por favor revisa los campos marcados en rojo',
+                    confirmButtonColor: '#0d6efd'
+                });
+                return;
+            }
+            
+            // Obtener valores
+            const nombre = document.getElementById('nombreProducto').value.trim();
+            const categoriaId = document.getElementById('categoriaProducto').value;
+            const precio = parseFloat(document.getElementById('precioProducto').value);
+            const stockMin = parseInt(document.getElementById('stockMinProducto').value);
+            const descripcion = document.getElementById('descripcionProducto').value.trim();
+            
+            if (!categoriaId) {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Categoría requerida',
+                    text: 'Selecciona una categoría para el producto',
+                    confirmButtonColor: '#0d6efd'
+                });
+                return;
+            }
+            
+            // Deshabilitar botón
+            const originalText = guardarProductoBtn.innerHTML;
+            guardarProductoBtn.disabled = true;
+            guardarProductoBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Guardando...';
+            
+            try {
+                const response = await fetch('/inventory/producto/crear/ajax/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                    },
+                    body: JSON.stringify({
+                        nombre: nombre,
+                        categoria: categoriaId,
+                        precio_unitario: precio,
+                        stock_minimo: stockMin,
+                        descripcion: descripcion,
+                        tasa_iva: getTasaIvaDefault()
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (!response.ok || data.error) {
+                    throw new Error(data.error || 'Error al crear producto');
+                }
+                
+                console.log('[PRODUCTO] Producto creado:', data);
+                
+                // Cerrar modal
+                const modal = bootstrap.Modal.getInstance(document.getElementById('nuevoProductoModal'));
+                if (modal) {
+                    modal.hide();
+                }
+                
+                // Limpiar formulario
+                productoForm.reset();
+                productoForm.querySelectorAll('.is-valid, .is-invalid').forEach(el => {
+                    el.classList.remove('is-valid', 'is-invalid');
+                });
+                
+                // Mostrar mensaje de éxito
+                Swal.fire({
+                    icon: 'success',
+                    title: '¡Producto creado!',
+                    html: `
+                        <div class="text-start">
+                            <p class="mb-2"><strong>${data.nombre}</strong></p>
+                            <p class="mb-0 text-muted">Precio: ${new Intl.NumberFormat('es-CO', {style: 'currency', currency: 'COP', minimumFractionDigits: 0}).format(precio)}</p>
+                        </div>
+                    `,
+                    timer: 2500,
+                    timerProgressBar: true,
+                    showConfirmButton: false
+                }).then(() => {
+                    // Recargar página para actualizar lista de productos
+                    location.reload();
+                });
+                
+            } catch (error) {
+                console.error('[PRODUCTO] Error:', error);
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error al crear producto',
+                    text: error.message,
+                    confirmButtonColor: '#dc3545'
+                });
+            } finally {
+                guardarProductoBtn.disabled = false;
+                guardarProductoBtn.innerHTML = originalText;
+            }
+        });
+    }
+});
+
+
+// ============================================
+// MODAL NUEVA CATEGORÍA
+// ============================================
+document.addEventListener('DOMContentLoaded', function() {
+    const guardarCategoriaBtn = document.getElementById('guardarCategoriaBtn');
+    const categoriaForm = document.getElementById('nuevaCategoriaForm');
+    const nombreCategoriaInput = document.getElementById('nombreCategoria');
+    
+    // Validación en tiempo real
+    if (nombreCategoriaInput) {
+        nombreCategoriaInput.addEventListener('input', function() {
+            if (this.value.trim()) {
+                this.classList.remove('is-invalid');
+                this.classList.add('is-valid');
+            } else {
+                this.classList.remove('is-valid');
+                this.classList.add('is-invalid');
+            }
+        });
+    }
+    
+    // Manejar el botón de nueva categoría manualmente
+    const btnNuevaCategoria = document.getElementById('btnNuevaCategoria');
+    if (btnNuevaCategoria) {
+        btnNuevaCategoria.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            // Limpiar formulario
+            if (categoriaForm) {
+                categoriaForm.reset();
+            }
+            if (nombreCategoriaInput) {
+                nombreCategoriaInput.classList.remove('is-valid', 'is-invalid');
+            }
+            
+            // Abrir modal de categoría sin cerrar el de producto
+            const categoriaModal = document.getElementById('nuevaCategoriaModal');
+            if (categoriaModal) {
+                const modalInstance = new bootstrap.Modal(categoriaModal, {
+                    backdrop: 'static',
+                    keyboard: false
+                });
+                modalInstance.show();
+                
+                // Ajustar z-index para que esté encima del modal de producto
+                setTimeout(() => {
+                    categoriaModal.style.zIndex = '1060';
+                    const backdrops = document.querySelectorAll('.modal-backdrop');
+                    if (backdrops.length > 0) {
+                        backdrops[backdrops.length - 1].style.zIndex = '1055';
+                    }
+                }, 50);
+            }
+        });
+    }
+    
+    // Limpiar al abrir el modal
+    const categoriaModal = document.getElementById('nuevaCategoriaModal');
+    if (categoriaModal) {
+        // Restaurar el modal de producto cuando se cierra el de categoría
+        categoriaModal.addEventListener('hidden.bs.modal', function() {
+            // Limpiar backdrops extra
+            const backdrops = document.querySelectorAll('.modal-backdrop');
+            if (backdrops.length > 1) {
+                // Eliminar todos los backdrops excepto el primero
+                for (let i = 1; i < backdrops.length; i++) {
+                    backdrops[i].remove();
+                }
+            }
+            
+            const productoModal = document.getElementById('nuevoProductoModal');
+            if (productoModal && productoModal.classList.contains('show')) {
+                // Asegurar que el body tenga la clase modal-open
+                document.body.classList.add('modal-open');
+                
+                // Asegurar que el modal de producto esté visible
+                productoModal.style.zIndex = '1050';
+                
+                // Asegurar que el backdrop restante tenga el z-index correcto
+                const remainingBackdrop = document.querySelector('.modal-backdrop');
+                if (remainingBackdrop) {
+                    remainingBackdrop.style.zIndex = '1040';
+                }
+                
+                // Enfocar el select de categoría
+                const categoriaSelect = document.getElementById('categoriaProducto');
+                if (categoriaSelect) {
+                    setTimeout(() => categoriaSelect.focus(), 100);
+                }
+            }
+        });
+    }
+    
+    if (guardarCategoriaBtn) {
+        guardarCategoriaBtn.addEventListener('click', async function() {
+            console.log('[CATEGORIA] Guardando nueva categoría...');
+            
+            const nombre = nombreCategoriaInput ? nombreCategoriaInput.value.trim() : '';
+            
+            if (!nombre) {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Nombre requerido',
+                    text: 'Ingresa el nombre de la categoría',
+                    confirmButtonColor: '#0d6efd'
+                });
+                if (nombreCategoriaInput) {
+                    nombreCategoriaInput.classList.add('is-invalid');
+                    nombreCategoriaInput.focus();
+                }
+                return;
+            }
+            
+            // Deshabilitar botón y mostrar loading
+            const originalText = guardarCategoriaBtn.innerHTML;
+            guardarCategoriaBtn.disabled = true;
+            guardarCategoriaBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Guardando...';
+            
+            try {
+                const response = await fetch('/inventory/categoria/crear/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                    },
+                    body: JSON.stringify({
+                        nombre: nombre
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (!response.ok || data.error || data.errors) {
+                    const errorMsg = data.error || (data.errors && data.errors.nombre ? data.errors.nombre.join(', ') : 'Error al crear categoría');
+                    throw new Error(errorMsg);
+                }
+                
+                console.log('[CATEGORIA] Categoría creada:', data);
+                
+                // Agregar la nueva categoría al select del modal de producto
+                const categoriaSelect = document.getElementById('categoriaProducto');
+                if (categoriaSelect) {
+                    const option = document.createElement('option');
+                    option.value = data.id;
+                    option.textContent = data.nombre;
+                    option.selected = true;
+                    categoriaSelect.appendChild(option);
+                    console.log('[CATEGORIA] Categoría agregada al select');
+                }
+                
+                // Cerrar modal de categoría
+                const modal = bootstrap.Modal.getInstance(categoriaModal);
+                if (modal) {
+                    modal.hide();
+                }
+                
+                // Limpiar formulario
+                if (categoriaForm) {
+                    categoriaForm.reset();
+                }
+                if (nombreCategoriaInput) {
+                    nombreCategoriaInput.classList.remove('is-valid', 'is-invalid');
+                }
+                
+                // Mostrar toast discreto en lugar de SweetAlert
+                showToastNotification(`✓ Categoría "${data.nombre}" creada`, 'success');
+                
+                // Asegurar que el modal de producto permanezca abierto y enfocado
+                setTimeout(() => {
+                    // Eliminar todos los backdrops excepto el del modal de producto
+                    const backdrops = document.querySelectorAll('.modal-backdrop');
+                    if (backdrops.length > 1) {
+                        // Eliminar el último backdrop (del modal de categoría)
+                        backdrops[backdrops.length - 1].remove();
+                    }
+                    
+                    // Restaurar el body
+                    document.body.classList.add('modal-open');
+                    
+                    const productoModal = document.getElementById('nuevoProductoModal');
+                    if (productoModal && productoModal.classList.contains('show')) {
+                        // Asegurar z-index correcto
+                        productoModal.style.zIndex = '1050';
+                        
+                        // Enfocar el siguiente campo (precio)
+                        const precioInput = document.getElementById('precioProducto');
+                        if (precioInput) {
+                            precioInput.focus();
+                        }
+                    }
+                }, 300);
+                
+            } catch (error) {
+                console.error('[CATEGORIA] Error:', error);
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error al crear categoría',
+                    text: error.message,
+                    confirmButtonColor: '#dc3545'
+                });
+            } finally {
+                guardarCategoriaBtn.disabled = false;
+                guardarCategoriaBtn.innerHTML = originalText;
+            }
+        });
+    }
+});
+
+
+// ============================================
+// FUNCIÓN AUXILIAR PARA TOASTS
+// ============================================
+function showToastNotification(message, type = 'info') {
+    const toastContainer = document.querySelector('.toast-container') || createToastContainer();
+    const toastId = `toast-${Date.now()}`;
+    
+    const bgColors = {
+        'success': 'bg-success',
+        'danger': 'bg-danger',
+        'warning': 'bg-warning',
+        'info': 'bg-info'
+    };
+    
+    const icons = {
+        'success': 'fa-check-circle',
+        'danger': 'fa-exclamation-circle',
+        'warning': 'fa-exclamation-triangle',
+        'info': 'fa-info-circle'
+    };
+    
+    const toastHTML = `
+        <div id="${toastId}" class="toast align-items-center text-white ${bgColors[type]} border-0" role="alert" aria-live="assertive" aria-atomic="true">
+            <div class="d-flex">
+                <div class="toast-body">
+                    <i class="fas ${icons[type]} me-2"></i>${message}
+                </div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+        </div>
+    `;
+    
+    toastContainer.insertAdjacentHTML('beforeend', toastHTML);
+    const toastElement = document.getElementById(toastId);
+    const toast = new bootstrap.Toast(toastElement, { delay: 3000 });
+    toast.show();
+    
+    // Eliminar después de ocultar
+    toastElement.addEventListener('hidden.bs.toast', function() {
+        toastElement.remove();
+    });
+}
+
+function createToastContainer() {
+    let container = document.querySelector('.toast-container');
+    if (!container) {
+        container = document.createElement('div');
+        container.className = 'toast-container position-fixed top-0 end-0 p-3';
+        container.style.zIndex = '9999';
+        document.body.appendChild(container);
+    }
+    return container;
+}
+
+
+// ============================================
+// FUNCIÓN AUXILIAR PARA OBTENER TASA IVA POR DEFECTO
+// ============================================
+function getTasaIvaDefault() {
+    // Buscar en las tasas de IVA disponibles
+    const tasasIvaScript = document.querySelector('script[data-tasas-iva]');
+    if (tasasIvaScript) {
+        try {
+            const tasasIva = JSON.parse(tasasIvaScript.textContent);
+            // Buscar la tasa del 19% (IVA General)
+            const tasaGeneral = tasasIva.find(t => parseFloat(t.porcentaje) === 19);
+            if (tasaGeneral) {
+                return tasaGeneral.id;
+            } else if (tasasIva.length > 0) {
+                // Si no hay 19%, usar la primera disponible
+                return tasasIva[0].id;
+            }
+        } catch (e) {
+            console.warn('[PRODUCTO] Error al obtener tasa de IVA:', e);
+        }
+    }
+    // Fallback: retornar null y dejar que el backend maneje el valor por defecto
+    return null;
+}
