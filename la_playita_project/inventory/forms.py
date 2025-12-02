@@ -9,9 +9,9 @@ from django.forms import inlineformset_factory
 class ProductoForm(forms.ModelForm):
     precio_unitario = forms.DecimalField(
         max_digits=12, 
-        decimal_places=0,
+        decimal_places=2,
         validators=[MinValueValidator(0)],
-        widget=forms.NumberInput(attrs={'class': 'form-control', 'step': '1'})
+        widget=forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'})
     )
     stock_minimo = forms.IntegerField(
         validators=[MinValueValidator(0)],

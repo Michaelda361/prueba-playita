@@ -192,6 +192,7 @@ def producto_detail_json(request, pk):
         'descripcion': producto.descripcion or '', # Corrección: Asegura una cadena vacía
         'stock_minimo': producto.stock_minimo,
         'categoria_id': producto.categoria_id,
+        'tasa_iva_id': producto.tasa_iva_id,
     }
     return JsonResponse(data)
 
@@ -201,7 +202,12 @@ def producto_detail_json(request, pk):
 @check_user_role(allowed_roles=['Administrador', 'Vendedor'])
 def producto_update(request, pk):
     producto = get_object_or_404(Producto, pk=pk)
-    form = ProductoForm(request.POST, instance=producto)
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'errors': 'JSON inválido'}, status=400)
+    
+    form = ProductoForm(data, instance=producto)
     if form.is_valid():
         producto = form.save()
         return JsonResponse({

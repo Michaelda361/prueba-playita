@@ -93,6 +93,9 @@
     </div>
 </div>
 
+{% endblock %}
+
+{% block modals %}
 <!-- Product Modal (for New and Edit) - Se asume que este modal contiene el formulario -->
 <div class="modal fade" id="productModal" tabindex="-1" aria-labelledby="productModalLabel" aria-hidden="true" data-bs-backdrop="static">
     <div class="modal-dialog modal-lg">
@@ -116,7 +119,6 @@
 </div>
 
 {% include 'inventory/_nueva_categoria_modal.html' %}
-
 {% endblock %}
 
 {% block extra_js %}
@@ -154,6 +156,7 @@
                         document.getElementById('id_descripcion').value = data.descripcion;
                         document.getElementById('id_stock_minimo').value = data.stock_minimo;
                         document.getElementById('id_categoria').value = data.categoria_id;
+                        document.getElementById('id_tasa_iva').value = data.tasa_iva_id;
                         productModal.show(); // Show modal after data is loaded
                     })
                     .catch(error => {
