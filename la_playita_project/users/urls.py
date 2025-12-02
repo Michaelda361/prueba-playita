@@ -11,6 +11,13 @@ urlpatterns = [
     path('logout/', LogoutView.as_view(next_page='landing'), name='logout'),
     path('register/', views.register_view, name='register'),
 
+    # Gestión de usuarios
+    path('', views.listar_usuarios, name='listar_usuarios'),
+    path('crear/', views.crear_usuario, name='crear_usuario'),
+    path('editar/<int:usuario_id>/', views.editar_usuario, name='editar_usuario'),
+    path('cambiar-estado/<int:usuario_id>/', views.cambiar_estado_usuario, name='cambiar_estado_usuario'),
+    path('cambiar-contrasena/<int:usuario_id>/', views.cambiar_contrasena_usuario, name='cambiar_contrasena_usuario'),
+
     # URLs para el reseteo de contraseña
     path('password_reset/', auth_views.PasswordResetView.as_view(
         template_name='registration/password_reset_form.html',
