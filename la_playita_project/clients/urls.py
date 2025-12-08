@@ -7,6 +7,7 @@ urlpatterns = [
     # Clientes - CRUD básico
     path('', views.cliente_list, name='cliente_list'),
     path('create-ajax/', views.cliente_create_ajax, name='cliente_create_ajax'),
+    path('api/crear/', views.cliente_create_ajax, name='cliente_create_api'),  # Alias para PQRS
 
     # Panel de puntos - Cliente específico
     path('panel-puntos/<int:cliente_id>/', views.panel_puntos, name='panel_puntos'),

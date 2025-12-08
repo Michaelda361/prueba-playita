@@ -1,248 +1,594 @@
 {% extends 'core/base.html' %}
 {% load static %}
 {% load pqrs_extras %}
+{% load pqrs_sla_extras %}
 
-{% block title %}Detalle de PQRS #{{ pqrs.id }}{% endblock %}
+{% block title %}{{ pqrs.numero_caso }} - Detalle{% endblock %}
 
 {% block extra_css %}
-    <link rel="stylesheet" href="{% static 'pqrs/css/pqrs.css' %}">
+<link rel="stylesheet" href="{% static 'pqrs/css/pqrs.css' %}">
+<style>
+    .case-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 2rem;
+        border-radius: 10px;
+        margin-bottom: 2rem;
+    }
+    .metric-card {
+        border-left: 4px solid;
+        transition: transform 0.2s;
+    }
+    .metric-card:hover {
+        transform: translateX(5px);
+    }
+    .hover-shadow {
+        transition: all 0.3s ease;
+    }
+    .hover-shadow:hover {
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        transform: translateY(-2px);
+    }
+    .timeline-modern {
+        position: relative;
+        padding-left: 30px;
+    }
+    .timeline-modern::before {
+        content: '';
+        position: absolute;
+        left: 10px;
+        top: 0;
+        bottom: 0;
+        width: 2px;
+        background: #e9ecef;
+    }
+    .timeline-item-modern {
+        position: relative;
+        padding-bottom: 2rem;
+    }
+    .timeline-dot-modern {
+        position: absolute;
+        left: -24px;
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        border: 3px solid;
+        background: white;
+    }
+    .nav-pills .nav-link {
+        border-radius: 50px;
+        padding: 0.5rem 1.5rem;
+    }
+    .nav-pills .nav-link.active {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+    .action-card {
+        border: 2px dashed #dee2e6;
+        transition: all 0.3s;
+    }
+    .action-card:hover {
+        border-color: #667eea;
+        background: #f8f9fa;
+    }
+</style>
 {% endblock %}
 
 {% block content %}
-<div class="container mt-4">
-    <div class="mb-3">
-        <a href="{% url 'pqrs:pqrs_list' %}" class="btn btn-secondary">
-            <i class="bi bi-arrow-left"></i> Volver al Listado
-        </a>
-    </div>
+<div class="container-fluid mt-4">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb bg-light p-3 rounded">
+            <li class="breadcrumb-item">
+                <a href="{% url 'dashboard' %}"><i class="bi bi-house-door"></i> Inicio</a>
+            </li>
+            <li class="breadcrumb-item">
+                <a href="{% url 'pqrs:pqrs_dashboard' %}"><i class="bi bi-speedometer2"></i> Dashboard PQRS</a>
+            </li>
+            <li class="breadcrumb-item">
+                <a href="{% url 'pqrs:pqrs_list' %}"><i class="bi bi-list-ul"></i> Lista</a>
+            </li>
+            <li class="breadcrumb-item active" aria-current="page">
+                {{ pqrs.numero_caso }}
+            </li>
+        </ol>
+    </nav>
 
-    <div class="row">
-        <!-- Columna Principal -->
-        <div class="col-lg-8">
-            <!-- Stepper -->
-            <div class="card shadow-sm mb-4">
-                <div class="card-header bg-light d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0">Línea de Tiempo del PQRS</h5>
-                    <span class="badge {{ pqrs.estado|status_badge }} rounded-pill">{{ pqrs.get_estado_display }}</span>
+    <!-- Flujo Visual del Caso -->
+    <div class="card mb-4 border-0 shadow-sm">
+        <div class="card-body py-3">
+            <div class="row text-center align-items-center">
+                <!-- Paso 1: Creado -->
+                <div class="col">
+                    <div class="step-indicator completed">
+                        <i class="bi bi-check-circle-fill text-success" style="font-size: 1.5rem;"></i>
+                        <div class="small fw-bold mt-1">Creado</div>
+                        <div class="text-muted" style="font-size: 0.75rem;">{{ pqrs.fecha_creacion|date:"d/m H:i" }}</div>
+                    </div>
                 </div>
-                <div class="card-body">
-                    <div class="stepper-wrapper">
-                        {% for choice in pqrs.ESTADO_CHOICES %}
-                            <div class="stepper-item {% if pqrs.estado == choice.0 %}active{% elif forloop.counter < pqrs.ESTADO_CHOICES|length %}completed{% endif %}">
-                                <div class="step-counter">{{ forloop.counter }}</div>
-                                <div class="step-name">{{ choice.1 }}</div>
-                            </div>
-                        {% endfor %}
+                
+                <div class="col-auto"><i class="bi bi-arrow-right text-muted"></i></div>
+                
+                <!-- Paso 2: Asignado -->
+                <div class="col">
+                    <div class="step-indicator {% if pqrs.asignado_a %}completed{% else %}pending{% endif %}">
+                        {% if pqrs.asignado_a %}
+                            <i class="bi bi-check-circle-fill text-success" style="font-size: 1.5rem;"></i>
+                        {% else %}
+                            <i class="bi bi-circle text-muted" style="font-size: 1.5rem;"></i>
+                        {% endif %}
+                        <div class="small fw-bold mt-1">Asignado</div>
+                        <div class="text-muted" style="font-size: 0.75rem;">
+                            {% if pqrs.asignado_a %}{{ pqrs.asignado_a.username }}{% else %}Pendiente{% endif %}
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-auto"><i class="bi bi-arrow-right text-muted"></i></div>
+                
+                <!-- Paso 3: En Proceso -->
+                <div class="col">
+                    <div class="step-indicator {% if pqrs.estado == 'en_proceso' or pqrs.estado == 'resuelto' or pqrs.estado == 'cerrado' %}active{% elif pqrs.estado == 'nuevo' %}pending{% endif %}">
+                        {% if pqrs.estado == 'en_proceso' %}
+                            <i class="bi bi-hourglass-split text-warning" style="font-size: 1.5rem;"></i>
+                        {% elif pqrs.estado == 'resuelto' or pqrs.estado == 'cerrado' %}
+                            <i class="bi bi-check-circle-fill text-success" style="font-size: 1.5rem;"></i>
+                        {% else %}
+                            <i class="bi bi-circle text-muted" style="font-size: 1.5rem;"></i>
+                        {% endif %}
+                        <div class="small fw-bold mt-1">En Proceso</div>
+                        <div class="text-muted" style="font-size: 0.75rem;">
+                            {% if pqrs.estado == 'en_proceso' %}Activo{% elif pqrs.estado == 'nuevo' %}Pendiente{% else %}Completado{% endif %}
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-auto"><i class="bi bi-arrow-right text-muted"></i></div>
+                
+                <!-- Paso 4: Resuelto -->
+                <div class="col">
+                    <div class="step-indicator {% if pqrs.estado == 'resuelto' or pqrs.estado == 'cerrado' %}completed{% else %}pending{% endif %}">
+                        {% if pqrs.estado == 'resuelto' or pqrs.estado == 'cerrado' %}
+                            <i class="bi bi-check-circle-fill text-success" style="font-size: 1.5rem;"></i>
+                        {% else %}
+                            <i class="bi bi-circle text-muted" style="font-size: 1.5rem;"></i>
+                        {% endif %}
+                        <div class="small fw-bold mt-1">Resuelto</div>
+                        <div class="text-muted" style="font-size: 0.75rem;">
+                            {% if pqrs.estado == 'resuelto' or pqrs.estado == 'cerrado' %}Completado{% else %}Pendiente{% endif %}
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-auto"><i class="bi bi-arrow-right text-muted"></i></div>
+                
+                <!-- Paso 5: Cerrado -->
+                <div class="col">
+                    <div class="step-indicator {% if pqrs.estado == 'cerrado' %}completed{% else %}pending{% endif %}">
+                        {% if pqrs.estado == 'cerrado' %}
+                            <i class="bi bi-lock-fill text-secondary" style="font-size: 1.5rem;"></i>
+                        {% else %}
+                            <i class="bi bi-circle text-muted" style="font-size: 1.5rem;"></i>
+                        {% endif %}
+                        <div class="small fw-bold mt-1">Cerrado</div>
+                        <div class="text-muted" style="font-size: 0.75rem;">
+                            {% if pqrs.fecha_cierre %}{{ pqrs.fecha_cierre|date:"d/m H:i" }}{% else %}Pendiente{% endif %}
+                        </div>
                     </div>
                 </div>
             </div>
+        </div>
+    </div>
 
-            <!-- Detalles del PQRS -->
-            <div class="card shadow-sm mb-4">
-                <div class="card-header bg-light d-flex justify-content-between align-items-center">
-                    <h4 class="mb-0">{{ pqrs.numero_caso }}</h4>
-                    <div>
-                        {% if pqrs.prioridad == 'urgente' %}
-                            <span class="badge bg-danger me-2">{{ pqrs.get_prioridad_display }}</span>
-                        {% elif pqrs.prioridad == 'alta' %}
-                            <span class="badge bg-warning text-dark me-2">{{ pqrs.get_prioridad_display }}</span>
-                        {% elif pqrs.prioridad == 'media' %}
-                            <span class="badge bg-info me-2">{{ pqrs.get_prioridad_display }}</span>
-                        {% else %}
-                            <span class="badge bg-secondary me-2">{{ pqrs.get_prioridad_display }}</span>
-                        {% endif %}
-                        <span class="badge bg-light text-dark">{{ pqrs.get_categoria_display }}</span>
+    <!-- Header del Caso -->
+    <div class="case-header shadow-lg">
+        <div class="d-flex justify-content-between align-items-start">
+            <div class="flex-grow-1">
+                <h2 class="mb-2">
+                    <i class="bi bi-ticket-detailed"></i> {{ pqrs.numero_caso }}
+                </h2>
+                <h4 class="mb-3">{{ pqrs.get_tipo_display }}</h4>
+                
+                <!-- Indicador SLA prominente -->
+                {% if pqrs.fecha_limite_sla %}
+                <div class="sla-indicator-header mt-3 p-3 bg-white bg-opacity-25 rounded">
+                    <div class="row align-items-center">
+                        <div class="col-auto">
+                            <i class="bi {{ pqrs.fecha_limite_sla|sla_icono }}" style="font-size: 2.5rem;"></i>
+                        </div>
+                        <div class="col">
+                            <h6 class="mb-1 text-white-50">
+                                <i class="bi bi-clock-history"></i> Tiempo Límite de Atención
+                            </h6>
+                            <h4 class="mb-0 {{ pqrs.fecha_limite_sla|sla_color_class }}">
+                                {{ pqrs.fecha_limite_sla|tiempo_restante_sla }}
+                            </h4>
+                            <small>Límite: {{ pqrs.fecha_limite_sla|date:"d/m/Y H:i" }}</small>
+                            
+                            <!-- Barra de progreso -->
+                            <div class="progress mt-2" style="height: 8px;">
+                                {% sla_porcentaje pqrs.fecha_creacion pqrs.fecha_limite_sla as porcentaje %}
+                                <div class="progress-bar {% if porcentaje >= 100 %}bg-danger{% elif porcentaje >= 80 %}bg-warning{% else %}bg-success{% endif %}" 
+                                     role="progressbar" 
+                                     style="width: {{ porcentaje }}%"
+                                     aria-valuenow="{{ porcentaje }}" 
+                                     aria-valuemin="0" 
+                                     aria-valuemax="100">
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
-                <div class="card-body">
-                    <h5 class="card-title">{{ pqrs.get_tipo_display }}</h5>
-                    <p class="card-text">{{ pqrs.descripcion }}</p>
-                    <hr>
-                    <h6>Información del Cliente</h6>
-                    <p><strong>Nombre:</strong> {{ pqrs.cliente.nombres }} {{ pqrs.cliente.apellidos }}</p>
-                    <p><strong>Documento:</strong> {{ pqrs.cliente.documento }}</p>
-                    <p><strong>Email:</strong> {{ pqrs.cliente.correo }}</p>
-                    <p><strong>Teléfono:</strong> {{ pqrs.cliente.telefono }}</p>
-                    <hr>
-                    <h6>Detalles del Registro</h6>
-                    <p><strong>Registrado por:</strong> {{ pqrs.creado_por.get_full_name|default:pqrs.creado_por.username }}</p>
-                    <p><strong>Fecha de Creación:</strong> {{ pqrs.fecha_creacion|date:"d/m/Y, H:i" }}</p>
-                    <p><strong>Última Actualización:</strong> {{ pqrs.fecha_actualizacion|date:"d/m/Y, H:i"|default:"N/A" }}</p>
-                    {% if pqrs.fecha_cierre %}
-                    <p><strong>Fecha de Cierre:</strong> {{ pqrs.fecha_cierre|date:"d/m/Y, H:i" }}</p>
+                {% endif %}
+                <div class="d-flex gap-2 flex-wrap">
+                    {% if pqrs.prioridad == 'urgente' %}
+                        <span class="badge bg-danger fs-6"><i class="bi bi-exclamation-triangle"></i> {{ pqrs.get_prioridad_display }}</span>
+                    {% elif pqrs.prioridad == 'alta' %}
+                        <span class="badge bg-warning text-dark fs-6"><i class="bi bi-arrow-up"></i> {{ pqrs.get_prioridad_display }}</span>
+                    {% else %}
+                        <span class="badge bg-info fs-6">{{ pqrs.get_prioridad_display }}</span>
                     {% endif %}
-                    
-                    <!-- Adjuntos -->
-                    {% if adjuntos %}
-                    <hr>
-                    <h6><i class="bi bi-paperclip"></i> Archivos Adjuntos ({{ adjuntos.count }})</h6>
-                    <div class="list-group">
-                        {% for adjunto in adjuntos %}
-                        <div class="list-group-item">
-                            <div class="d-flex justify-content-between align-items-center">
-                                <div>
-                                    <i class="bi bi-file-earmark"></i>
-                                    <strong>{{ adjunto.nombre_archivo }}</strong>
-                                    <br>
-                                    <small class="text-muted">
-                                        {{ adjunto.tamano_bytes|filesizeformat }} | 
-                                        Subido por {{ adjunto.subido_por.get_full_name|default:adjunto.subido_por.username }} | 
-                                        {{ adjunto.fecha_subida|date:"d/m/Y H:i" }}
-                                    </small>
-                                    {% if adjunto.descripcion %}
-                                    <br><small>{{ adjunto.descripcion }}</small>
+                    <span class="badge bg-light text-dark fs-6">{{ pqrs.get_categoria_display }}</span>
+                    <span class="badge bg-white text-dark fs-6"><i class="bi bi-broadcast"></i> {{ pqrs.get_canal_origen_display }}</span>
+                </div>
+            </div>
+            <div class="text-end">
+                <span class="badge {{ pqrs.estado|status_badge }} fs-5 px-4 py-2">
+                    {{ pqrs.get_estado_display }}
+                </span>
+                <div class="mt-3">
+                    <a href="{% url 'pqrs:pqrs_list' %}" class="btn btn-light">
+                        <i class="bi bi-arrow-left"></i> Volver al Listado
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Métricas Rápidas -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card metric-card border-primary">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="text-muted mb-1">Asignado a</h6>
+                            <h5 class="mb-0">
+                                {% if pqrs.asignado_a %}
+                                    {{ pqrs.asignado_a.get_full_name|default:pqrs.asignado_a.username }}
+                                {% else %}
+                                    Sin asignar
+                                {% endif %}
+                            </h5>
+                        </div>
+                        <i class="bi bi-person-circle fs-1 text-primary"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card metric-card border-success">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="text-muted mb-1">Tiempo Transcurrido</h6>
+                            <h5 class="mb-0">
+                                {% if pqrs.estado == 'cerrado' and pqrs.tiempo_resolucion_horas and pqrs.tiempo_resolucion_horas > 0 %}
+                                    {{ pqrs.tiempo_resolucion_horas }}h
+                                {% else %}
+                                    {{ pqrs.fecha_creacion|tiempo_transcurrido }}
+                                {% endif %}
+                            </h5>
+                        </div>
+                        <i class="bi bi-clock-history fs-1 text-success"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card metric-card border-info">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="text-muted mb-1">Eventos</h6>
+                            <h5 class="mb-0">{{ eventos.count }}</h5>
+                        </div>
+                        <i class="bi bi-list-check fs-1 text-info"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card metric-card border-warning">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="text-muted mb-1">Adjuntos</h6>
+                            <h5 class="mb-0">{{ adjuntos.count }}</h5>
+                        </div>
+                        <i class="bi bi-paperclip fs-1 text-warning"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabs de Navegación -->
+    <ul class="nav nav-pills mb-4" id="caseTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="info-tab" data-bs-toggle="tab" data-bs-target="#info" type="button">
+                <i class="bi bi-info-circle"></i> Información
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="timeline-tab" data-bs-toggle="tab" data-bs-target="#timeline" type="button">
+                <i class="bi bi-clock-history"></i> Timeline
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="actions-tab" data-bs-toggle="tab" data-bs-target="#actions" type="button">
+                <i class="bi bi-lightning"></i> Acciones
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="files-tab" data-bs-toggle="tab" data-bs-target="#files" type="button">
+                <i class="bi bi-paperclip"></i> Archivos
+            </button>
+        </li>
+    </ul>
+
+    <!-- Contenido de Tabs -->
+    <div class="tab-content" id="caseTabsContent">
+        <!-- Tab: Información -->
+        <div class="tab-pane fade show active" id="info" role="tabpanel">
+            <div class="row">
+                <div class="col-md-8">
+                    <div class="card shadow-sm mb-4">
+                        <div class="card-header bg-light">
+                            <h5 class="mb-0"><i class="bi bi-file-text"></i> Descripción del Caso</h5>
+                        </div>
+                        <div class="card-body">
+                            <p class="lead">{{ pqrs.descripcion }}</p>
+                        </div>
+                    </div>
+
+                    <div class="card shadow-sm">
+                        <div class="card-header bg-light">
+                            <h5 class="mb-0"><i class="bi bi-person"></i> Información del Cliente</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <p><i class="bi bi-person-badge text-primary"></i> <strong>Nombre:</strong><br>{{ pqrs.cliente.nombres }} {{ pqrs.cliente.apellidos }}</p>
+                                    <p><i class="bi bi-envelope text-primary"></i> <strong>Email:</strong><br>{{ pqrs.cliente.correo }}</p>
+                                </div>
+                                <div class="col-md-6">
+                                    <p><i class="bi bi-card-text text-primary"></i> <strong>Documento:</strong><br>{{ pqrs.cliente.documento }}</p>
+                                    <p><i class="bi bi-telephone text-primary"></i> <strong>Teléfono:</strong><br>{{ pqrs.cliente.telefono }}</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-4">
+                    <div class="card shadow-sm mb-4">
+                        <div class="card-header bg-light">
+                            <h5 class="mb-0"><i class="bi bi-calendar"></i> Fechas</h5>
+                        </div>
+                        <div class="card-body">
+                            <p><strong>Creado:</strong><br>{{ pqrs.fecha_creacion|date:"d/m/Y H:i" }}</p>
+                            {% if pqrs.fecha_primera_respuesta %}
+                            <p><strong>Primera Respuesta:</strong><br>{{ pqrs.fecha_primera_respuesta|date:"d/m/Y H:i" }}</p>
+                            {% endif %}
+                            {% if pqrs.fecha_cierre %}
+                            <p><strong>Cerrado:</strong><br>{{ pqrs.fecha_cierre|date:"d/m/Y H:i" }}</p>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    {% if pqrs.estado == 'cerrado' and calificacion %}
+                    <div class="card shadow-sm border-warning">
+                        <div class="card-header bg-warning">
+                            <h5 class="mb-0"><i class="bi bi-star-fill"></i> Calificación</h5>
+                        </div>
+                        <div class="card-body text-center">
+                            <h2 class="text-warning">
+                                {% for i in "12345" %}
+                                    {% if forloop.counter <= calificacion.puntuacion %}⭐{% endif %}
+                                {% endfor %}
+                            </h2>
+                            <p class="mb-0">{{ calificacion.get_puntuacion_display }}</p>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab: Timeline -->
+        <div class="tab-pane fade" id="timeline" role="tabpanel">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <div class="timeline-modern">
+                        {% for evento in eventos %}
+                        <div class="timeline-item-modern">
+                            <div class="timeline-dot-modern border-{% if evento.tipo_evento == 'creacion' %}success{% elif evento.tipo_evento == 'respuesta' %}primary{% elif evento.tipo_evento == 'estado' %}info{% else %}secondary{% endif %}"></div>
+                            <div class="card">
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between">
+                                        <h6 class="mb-1">
+                                            {% if evento.tipo_evento == 'creacion' %}
+                                                <span class="badge bg-success"><i class="bi bi-plus-circle"></i> Creación</span>
+                                            {% elif evento.tipo_evento == 'respuesta' %}
+                                                <span class="badge bg-primary"><i class="bi bi-chat-dots"></i> Respuesta</span>
+                                            {% elif evento.tipo_evento == 'estado' %}
+                                                <span class="badge bg-info"><i class="bi bi-arrow-repeat"></i> Cambio Estado</span>
+                                            {% else %}
+                                                <span class="badge bg-secondary"><i class="bi bi-sticky"></i> Nota</span>
+                                            {% endif %}
+                                        </h6>
+                                        <small class="text-muted">{{ evento.fecha_evento|date:"d/m/Y H:i" }}</small>
+                                    </div>
+                                    <p class="mb-1"><strong>{{ evento.usuario.get_full_name|default:evento.usuario.username }}</strong></p>
+                                    {% if evento.comentario %}
+                                    <p class="mb-0 text-muted">{{ evento.comentario }}</p>
                                     {% endif %}
                                 </div>
                             </div>
                         </div>
                         {% endfor %}
                     </div>
-                    {% endif %}
-                </div>
-            </div>
-
-            <!-- Subir Adjuntos -->
-            <div class="card shadow-sm mb-4">
-                <div class="card-header bg-light">
-                    <h5 class="mb-0"><i class="bi bi-paperclip"></i> Adjuntar Archivos</h5>
-                </div>
-                <div class="card-body">
-                    <form id="uploadForm" enctype="multipart/form-data">
-                        {% csrf_token %}
-                        <div class="mb-3">
-                            <label for="archivo" class="form-label">Seleccionar archivo</label>
-                            <input type="file" class="form-control" id="archivo" name="archivo" accept=".jpg,.jpeg,.png,.gif,.pdf,.doc,.docx,.xls,.xlsx">
-                            <div class="form-text">Formatos permitidos: JPG, PNG, GIF, PDF, DOC, DOCX, XLS, XLSX. Máximo 10MB.</div>
-                        </div>
-                        <div class="mb-3">
-                            <label for="descripcion_adjunto" class="form-label">Descripción (opcional)</label>
-                            <input type="text" class="form-control" id="descripcion_adjunto" name="descripcion" placeholder="Ej: Foto del producto dañado">
-                        </div>
-                        <button type="submit" class="btn btn-primary">
-                            <i class="bi bi-upload"></i> Subir Archivo
-                        </button>
-                    </form>
-                    <div id="uploadMessage" class="mt-3"></div>
-                </div>
-            </div>
-
-            <!-- Formulario de Actualización y Acciones -->
-            <div class="card shadow-sm">
-                <div class="card-header bg-light">
-                    <h5 class="mb-0">Responder y Gestionar PQRS</h5>
-                </div>
-                <div class="card-body">
-                    <form method="post" action="{% url 'pqrs:pqrs_update' pqrs.id %}">
-                        {% csrf_token %}
-                        
-                        <!-- Sección: Respuesta para el Cliente -->
-                        <div class="mb-4 p-3 border rounded bg-light">
-                            <h6 class="card-title text-primary"><i class="bi bi-envelope"></i> 1. Respuesta al Cliente</h6>
-                            <p class="card-text text-muted small mb-3">
-                                Esta respuesta se guardará en el historial y se puede enviar por correo electrónico al cliente.
-                            </p>
-                            <div class="mb-3">
-                                <label for="id_respuesta" class="form-label">Respuesta</label>
-                                {{ form.respuesta }}
-                                <div class="form-text">
-                                    <i class="bi bi-info-circle"></i> La respuesta quedará registrada en el historial del caso.
-                                </div>
-                            </div>
-                            <div class="d-flex justify-content-end gap-2">
-                                <button type="submit" name="action" value="save_response" class="btn btn-primary">
-                                    <i class="bi bi-save"></i> Guardar Respuesta
-                                </button>
-                            </div>
-                        </div>
-
-                        <hr class="my-4">
-
-                        <!-- Sección: Gestionar Estado y Observaciones Internas -->
-                        <div class="mb-3 p-3 border rounded">
-                            <h6 class="card-title text-success"><i class="bi bi-clipboard-check"></i> 2. Gestión Interna y Cambio de Estado</h6>
-                            <p class="card-text text-muted small mb-3">
-                                Gestiona el flujo interno del PQRS. Aquí puedes registrar notas internas relevantes y cambiar el estado del PQRS según corresponda.
-                            </p>
-                            <div class="mb-3">
-                                <label for="id_observacion_estado" class="form-label"><strong>Observación para Cambio de Estado</strong></label>
-                                {{ form.observacion_estado }}
-                                <div class="form-text">Detalla el motivo por el cual se realizará un cambio de estado. Este campo es requerido para las acciones de "Iniciar Proceso", "Marcar como Resuelto" o "Cerrar PQRS".</div>
-                            </div>
-
-                            <div class="mb-3">
-                                <label for="id_nota_interna" class="form-label"><strong>Añadir Nota Interna Adicional</strong></label>
-                                {{ form.nota_interna }}
-                                <div class="form-text">Utiliza este campo para registrar cualquier información o comentario interno adicional que no esté directamente relacionado con un cambio de estado.</div>
-                            </div>
-
-                            <div class="d-flex flex-wrap justify-content-start align-items-center gap-2 mt-3">
-                                {% if pqrs.estado == 'nuevo' %}
-                                    <button type="submit" name="action" value="start_processing" class="btn btn-warning">
-                                        <i class="bi bi-play-circle"></i> Iniciar Proceso
-                                    </button>
-                                {% elif pqrs.estado == 'en_proceso' %}
-                                    <button type="submit" name="action" value="resolve" class="btn btn-success">
-                                        <i class="bi bi-check2-circle"></i> Marcar como Resuelto
-                                    </button>
-                                {% endif %}
-                                
-                                {% if pqrs.estado != 'cerrado' %}
-                                    <button type="submit" name="action" value="close" class="btn btn-danger">
-                                        <i class="bi bi-archive"></i> Cerrar PQRS
-                                    </button>
-                                {% endif %}
-                                <button type="submit" name="action" value="save_internal_note" class="btn btn-info ms-auto">
-                                    <i class="bi bi-sticky"></i> Añadir Nota Interna
-                                </button>
-                            </div>
-                        </div>
-                    </form>
                 </div>
             </div>
         </div>
 
-        <!-- Columna Lateral -->
-        <div class="col-lg-4">
-            <div class="card shadow-sm">
-                <div class="card-header bg-light">
-                    <h5 class="mb-0">Historial de Cambios</h5>
+        <!-- Tab: Acciones -->
+        <div class="tab-pane fade" id="actions" role="tabpanel">
+            <div class="row">
+                <!-- Asignar -->
+                <div class="col-md-6 mb-4">
+                    <div class="card action-card h-100">
+                        <div class="card-body">
+                            <h5><i class="bi bi-person-check text-primary"></i> Asignar Caso</h5>
+                            <form method="post" action="{% url 'pqrs:pqrs_asignar' pqrs.id %}">
+                                {% csrf_token %}
+                                {{ asignar_form.asignado_a }}
+                                <button type="submit" class="btn btn-primary w-100 mt-2">Asignar</button>
+                            </form>
+                        </div>
+                    </div>
                 </div>
-                <div class="card-body">
-                    {% if eventos %}
-                        <div class="timeline">
-                            {% for item in eventos %}
-                                <div class="timeline-item">
-                                    <div class="timeline-dot"></div>
-                                    <div class="timeline-content">
-                                        <p class="mb-1">
-                                            <strong class="text-primary">
-                                                <i class="bi bi-person"></i> {{ item.usuario.get_full_name|default:item.usuario.username }}
-                                            </strong>
-                                            <small class="text-muted float-end"><i class="bi bi-clock"></i> {{ item.fecha_evento|date:"d/m/Y H:i" }}</small>
-                                        </p>
-                                        <p class="mb-1">
-                                            {% if item.tipo_evento == 'creacion' %}
-                                                <span class="badge bg-success"><i class="bi bi-plus-circle"></i> PQRS Creado</span>
-                                            {% elif item.tipo_evento == 'estado' %}
-                                                <span class="badge bg-info"><i class="bi bi-arrow-repeat"></i> Cambio de Estado</span>
-                                            {% elif item.tipo_evento == 'respuesta' %}
-                                                <span class="badge bg-primary"><i class="bi bi-chat-dots"></i> Respuesta Enviada</span>
-                                            {% elif item.tipo_evento == 'nota' %}
-                                                <span class="badge bg-secondary"><i class="bi bi-sticky"></i> Nota Interna Añadida</span>
-                                            {% endif %}
-                                        </p>
-                                        {% if item.comentario %}
-                                            <p class="mb-1 mt-2 fst-italic">
-                                                "{{ item.comentario }}"
-                                            </p>
+
+                <!-- Responder -->
+                <div class="col-md-6 mb-4">
+                    <div class="card action-card h-100">
+                        <div class="card-body">
+                            <h5><i class="bi bi-envelope text-success"></i> Responder al Cliente</h5>
+                            <form method="post" action="{% url 'pqrs:pqrs_update' pqrs.id %}">
+                                {% csrf_token %}
+                                {{ form.respuesta }}
+                                <button type="submit" name="action" value="save_response" class="btn btn-success w-100 mt-2">Enviar Respuesta</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Cambiar Estado -->
+                {% if pqrs.estado != 'cerrado' %}
+                <div class="col-md-12">
+                    <div class="card action-card">
+                        <div class="card-body">
+                            <h5><i class="bi bi-arrow-repeat text-warning"></i> Cambiar Estado</h5>
+                            
+                            <!-- Estado actual -->
+                            <div class="alert alert-info mb-3">
+                                <strong>Estado actual:</strong> 
+                                <span class="badge 
+                                    {% if pqrs.estado == 'nuevo' %}bg-primary
+                                    {% elif pqrs.estado == 'en_proceso' %}bg-warning
+                                    {% elif pqrs.estado == 'resuelto' %}bg-success
+                                    {% else %}bg-secondary{% endif %}">
+                                    {{ pqrs.get_estado_display }}
+                                </span>
+                            </div>
+                            
+                            <form method="post" action="{% url 'pqrs:pqrs_update' pqrs.id %}" id="estadoForm">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" id="actionInput" value="">
+                                {{ form.observacion_estado }}
+                                <div class="d-flex gap-2 mt-3">
+                                    {% if pqrs.estado == 'nuevo' %}
+                                        <button type="button" data-action="start_processing" class="btn btn-warning estado-btn">
+                                            <span class="btn-text"><i class="bi bi-play-circle"></i> Iniciar Proceso</span>
+                                            <span class="spinner-border spinner-border-sm d-none" role="status"></span>
+                                        </button>
+                                    {% elif pqrs.estado == 'en_proceso' %}
+                                        <button type="button" data-action="resolve" class="btn btn-success estado-btn">
+                                            <span class="btn-text"><i class="bi bi-check-circle"></i> Marcar Resuelto</span>
+                                            <span class="spinner-border spinner-border-sm d-none" role="status"></span>
+                                        </button>
+                                    {% elif pqrs.estado == 'resuelto' %}
+                                        <div class="alert alert-success mb-3">
+                                            <i class="bi bi-check-circle-fill"></i> Este caso ha sido marcado como resuelto. 
+                                            Puede cerrarlo definitivamente o reabrirlo si es necesario.
+                                        </div>
+                                    {% endif %}
+                                    
+                                    {% if pqrs.estado != 'resuelto' %}
+                                        <button type="button" data-action="close" class="btn btn-danger estado-btn">
+                                            <span class="btn-text"><i class="bi bi-x-circle"></i> Cerrar Caso</span>
+                                            <span class="spinner-border spinner-border-sm d-none" role="status"></span>
+                                        </button>
+                                    {% else %}
+                                        <button type="button" data-action="close" class="btn btn-danger estado-btn">
+                                            <span class="btn-text"><i class="bi bi-lock"></i> Cerrar Definitivamente</span>
+                                            <span class="spinner-border spinner-border-sm d-none" role="status"></span>
+                                        </button>
+                                    {% endif %}
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Tab: Archivos -->
+        <div class="tab-pane fade" id="files" role="tabpanel">
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="card shadow-sm">
+                        <div class="card-header bg-light">
+                            <h5 class="mb-0"><i class="bi bi-upload"></i> Subir Archivo</h5>
+                        </div>
+                        <div class="card-body">
+                            <form id="uploadForm" enctype="multipart/form-data">
+                                {% csrf_token %}
+                                <input type="file" class="form-control mb-3" id="archivo" name="archivo">
+                                <input type="text" class="form-control mb-3" name="descripcion" placeholder="Descripción (opcional)">
+                                <button type="submit" class="btn btn-primary w-100">Subir</button>
+                            </form>
+                            <div id="uploadMessage" class="mt-3"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card shadow-sm">
+                        <div class="card-header bg-light">
+                            <h5 class="mb-0"><i class="bi bi-files"></i> Archivos Adjuntos</h5>
+                        </div>
+                        <div class="card-body">
+                            {% if adjuntos %}
+                                {% for adjunto in adjuntos %}
+                                <div class="d-flex align-items-center mb-3 p-2 border rounded hover-shadow">
+                                    <i class="bi bi-file-earmark-{% if 'image' in adjunto.tipo_mime %}image{% elif 'pdf' in adjunto.tipo_mime %}pdf{% else %}text{% endif %} fs-3 text-primary me-3"></i>
+                                    <div class="flex-grow-1">
+                                        <strong>{{ adjunto.nombre_archivo }}</strong><br>
+                                        <small class="text-muted">
+                                            {{ adjunto.tamano_bytes|filesizeformat }} • 
+                                            Subido por {{ adjunto.subido_por.get_full_name|default:adjunto.subido_por.username }} • 
+                                            {{ adjunto.fecha_subida|date:"d/m/Y H:i" }}
+                                        </small>
+                                        {% if adjunto.descripcion %}
+                                        <br><small class="text-muted"><i class="bi bi-chat-left-text"></i> {{ adjunto.descripcion }}</small>
                                         {% endif %}
                                     </div>
+                                    <div class="btn-group">
+                                        <a href="/media/{{ adjunto.ruta_archivo }}" target="_blank" class="btn btn-sm btn-outline-primary" data-bs-toggle="tooltip" title="Ver archivo">
+                                            <i class="bi bi-eye"></i>
+                                        </a>
+                                        <a href="/media/{{ adjunto.ruta_archivo }}" download class="btn btn-sm btn-outline-success" data-bs-toggle="tooltip" title="Descargar">
+                                            <i class="bi bi-download"></i>
+                                        </a>
+                                    </div>
                                 </div>
-                            {% endfor %}
+                                {% endfor %}
+                            {% else %}
+                                <p class="text-muted text-center">No hay archivos adjuntos</p>
+                            {% endif %}
                         </div>
-                    {% else %}
-                        <p class="text-muted">No hay historial de cambios para este PQRS.</p>
-                    {% endif %}
+                    </div>
                 </div>
             </div>
         </div>
@@ -253,48 +599,105 @@
 {% block extra_js %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    const uploadForm = document.getElementById('uploadForm');
-    const uploadMessage = document.getElementById('uploadMessage');
+    // Prevenir múltiples envíos en formulario de cambio de estado
+    const estadoForm = document.getElementById('estadoForm');
+    if (estadoForm) {
+        let isSubmitting = false;
+        const actionInput = document.getElementById('actionInput');
+        
+        // Manejar clicks en botones de estado
+        estadoForm.querySelectorAll('.estado-btn').forEach(btn => {
+            btn.addEventListener('click', function(e) {
+                e.preventDefault();
+                
+                // Verificar que haya observación
+                const observacion = estadoForm.querySelector('[name="observacion_estado"]');
+                if (!observacion || !observacion.value.trim()) {
+                    alert('Debe proporcionar una observación para el cambio de estado.');
+                    return false;
+                }
+                
+                // Verificar si ya se está enviando
+                if (isSubmitting) {
+                    return false;
+                }
+                
+                // Marcar como enviando
+                isSubmitting = true;
+                
+                // Establecer la acción en el campo oculto
+                const action = this.getAttribute('data-action');
+                actionInput.value = action;
+                
+                // Deshabilitar el botón
+                this.disabled = true;
+                
+                // Ocultar texto y mostrar spinner
+                const btnText = this.querySelector('.btn-text');
+                const spinner = this.querySelector('.spinner-border');
+                if (btnText) btnText.classList.add('d-none');
+                if (spinner) spinner.classList.remove('d-none');
+                
+                // Deshabilitar todos los botones de estado
+                estadoForm.querySelectorAll('.estado-btn').forEach(b => b.disabled = true);
+                
+                // Enviar el formulario
+                estadoForm.submit();
+            });
+        });
+    }
     
-    uploadForm.addEventListener('submit', async function(e) {
-        e.preventDefault();
-        
-        const formData = new FormData(uploadForm);
-        const archivo = document.getElementById('archivo').files[0];
-        
-        if (!archivo) {
-            uploadMessage.innerHTML = '<div class="alert alert-warning">Por favor seleccione un archivo.</div>';
-            return;
-        }
-        
-        uploadMessage.innerHTML = '<div class="alert alert-info">Subiendo archivo...</div>';
-        
-        try {
-            const response = await fetch('{% url "pqrs:pqrs_upload_adjunto" pqrs.id %}', {
-                method: 'POST',
-                body: formData,
-                headers: {
-                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+    // Prevenir múltiples envíos en otros formularios
+    const allForms = document.querySelectorAll('form');
+    allForms.forEach(form => {
+        if (form.id !== 'estadoForm' && form.id !== 'uploadForm') {
+            let formSubmitting = false;
+            form.addEventListener('submit', function(e) {
+                if (formSubmitting) {
+                    e.preventDefault();
+                    return false;
+                }
+                formSubmitting = true;
+                const submitBtn = form.querySelector('button[type="submit"]');
+                if (submitBtn) {
+                    submitBtn.disabled = true;
+                    submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span> Procesando...';
                 }
             });
-            
-            const data = await response.json();
-            
-            if (response.ok) {
-                uploadMessage.innerHTML = '<div class="alert alert-success">' + data.message + '</div>';
-                uploadForm.reset();
-                
-                // Recargar página después de 1 segundo
-                setTimeout(() => {
-                    window.location.reload();
-                }, 1000);
-            } else {
-                uploadMessage.innerHTML = '<div class="alert alert-danger">' + data.error + '</div>';
-            }
-        } catch (error) {
-            uploadMessage.innerHTML = '<div class="alert alert-danger">Error al subir el archivo.</div>';
         }
     });
+    
+    // Upload form
+    const uploadForm = document.getElementById('uploadForm');
+    if (uploadForm) {
+        uploadForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const formData = new FormData(uploadForm);
+            const archivo = document.getElementById('archivo').files[0];
+            
+            if (!archivo) {
+                document.getElementById('uploadMessage').innerHTML = '<div class="alert alert-warning">Seleccione un archivo</div>';
+                return;
+            }
+            
+            try {
+                const response = await fetch('{% url "pqrs:pqrs_upload_adjunto" pqrs.id %}', {
+                    method: 'POST',
+                    body: formData,
+                    headers: {'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value}
+                });
+                const data = await response.json();
+                if (response.ok) {
+                    document.getElementById('uploadMessage').innerHTML = '<div class="alert alert-success">' + data.message + '</div>';
+                    setTimeout(() => window.location.reload(), 1000);
+                } else {
+                    document.getElementById('uploadMessage').innerHTML = '<div class="alert alert-danger">' + data.error + '</div>';
+                }
+            } catch (error) {
+                document.getElementById('uploadMessage').innerHTML = '<div class="alert alert-danger">Error al subir</div>';
+            }
+        });
+    }
 });
 </script>
 {% endblock %}

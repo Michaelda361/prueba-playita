@@ -1,0 +1,352 @@
+{% extends 'core/base.html' %}
+{% load static %}
+
+{% block title %}Estadísticas PQRS{% endblock %}
+
+{% block extra_css %}
+    <link rel="stylesheet" href="{% static 'pqrs/css/pqrs.css' %}">
+    <style>
+        .chart-container {
+            position: relative;
+            height: 300px;
+            margin-bottom: 20px;
+        }
+        .stat-card {
+            transition: transform 0.2s;
+        }
+        .stat-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        }
+    </style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i class="bi bi-graph-up"></i> Estadísticas PQRS</h2>
+        <a href="{% url 'pqrs:pqrs_list' %}" class="btn btn-secondary">
+            <i class="bi bi-arrow-left"></i> Volver al Listado
+        </a>
+    </div>
+
+    <!-- Estadísticas Generales -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0"><i class="bi bi-bar-chart"></i> Resumen General</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-3 mb-3">
+                    <div class="card bg-light stat-card">
+                        <div class="card-body text-center">
+                            <h3 class="text-primary">{{ stats_generales.total_casos }}</h3>
+                            <p class="mb-0">Total de Casos</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3 mb-3">
+                    <div class="card bg-light stat-card">
+                        <div class="card-body text-center">
+                            <h3 class="text-info">{{ stats_generales.casos_nuevos }}</h3>
+                            <p class="mb-0">Casos Nuevos</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3 mb-3">
+                    <div class="card bg-light stat-card">
+                        <div class="card-body text-center">
+                            <h3 class="text-warning">{{ stats_generales.casos_en_proceso }}</h3>
+                            <p class="mb-0">En Proceso</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3 mb-3">
+                    <div class="card bg-light stat-card">
+                        <div class="card-body text-center">
+                            <h3 class="text-success">{{ stats_generales.casos_cerrados }}</h3>
+                            <p class="mb-0">Cerrados</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Gráfica de Estados -->
+            <div class="row mt-4">
+                <div class="col-md-6">
+                    <h6 class="text-center mb-3">Distribución por Estado</h6>
+                    <div class="chart-container">
+                        <canvas id="chartEstados"></canvas>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <h6 class="text-center mb-3">Métricas Clave</h6>
+                    <div class="chart-container">
+                        <canvas id="chartMetricas"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Estadísticas por Usuario -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-success text-white">
+            <h5 class="mb-0"><i class="bi bi-people"></i> Rendimiento por Operador</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Operador</th>
+                            <th>Total Asignados</th>
+                            <th>Nuevos</th>
+                            <th>En Proceso</th>
+                            <th>Resueltos</th>
+                            <th>Cerrados</th>
+                            <th>Tiempo Promedio (hrs)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for stat in stats_por_usuario %}
+                        <tr>
+                            <td><i class="bi bi-person-fill"></i> {{ stat.1 }} {{ stat.2 }}</td>
+                            <td><strong>{{ stat.3 }}</strong></td>
+                            <td><span class="badge bg-info">{{ stat.4 }}</span></td>
+                            <td><span class="badge bg-warning text-dark">{{ stat.5 }}</span></td>
+                            <td><span class="badge bg-success">{{ stat.6 }}</span></td>
+                            <td><span class="badge bg-secondary">{{ stat.7 }}</span></td>
+                            <td>{{ stat.8|floatformat:1|default:"N/A" }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="7" class="text-center">No hay datos disponibles</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Estadísticas por Tipo -->
+        <div class="col-md-6 mb-4">
+            <div class="card shadow-sm">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0"><i class="bi bi-tags"></i> Por Tipo de PQRS</h5>
+                </div>
+                <div class="card-body">
+                    <div class="chart-container">
+                        <canvas id="chartTipos"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Estadísticas por Canal -->
+        <div class="col-md-6 mb-4">
+            <div class="card shadow-sm">
+                <div class="card-header bg-warning text-dark">
+                    <h5 class="mb-0"><i class="bi bi-broadcast"></i> Por Canal de Origen</h5>
+                </div>
+                <div class="card-body">
+                    <div class="chart-container">
+                        <canvas id="chartCanales"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Gráfica de Estados (Doughnut)
+    const ctxEstados = document.getElementById('chartEstados').getContext('2d');
+    new Chart(ctxEstados, {
+        type: 'doughnut',
+        data: {
+            labels: ['Nuevos', 'En Proceso', 'Resueltos', 'Cerrados'],
+            datasets: [{
+                data: [
+                    {{ stats_generales.casos_nuevos }},
+                    {{ stats_generales.casos_en_proceso }},
+                    {{ stats_generales.casos_resueltos }},
+                    {{ stats_generales.casos_cerrados }}
+                ],
+                backgroundColor: [
+                    'rgba(13, 202, 240, 0.8)',
+                    'rgba(255, 193, 7, 0.8)',
+                    'rgba(25, 135, 84, 0.8)',
+                    'rgba(108, 117, 125, 0.8)'
+                ],
+                borderColor: [
+                    'rgba(13, 202, 240, 1)',
+                    'rgba(255, 193, 7, 1)',
+                    'rgba(25, 135, 84, 1)',
+                    'rgba(108, 117, 125, 1)'
+                ],
+                borderWidth: 2
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom'
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                            const percentage = ((context.parsed / total) * 100).toFixed(1);
+                            return context.label + ': ' + context.parsed + ' (' + percentage + '%)';
+                        }
+                    }
+                }
+            }
+        }
+    });
+
+    // Gráfica de Métricas (Bar horizontal)
+    const ctxMetricas = document.getElementById('chartMetricas').getContext('2d');
+    new Chart(ctxMetricas, {
+        type: 'bar',
+        data: {
+            labels: ['Urgentes', 'Alta Prioridad', 'Última Semana', 'Último Mes'],
+            datasets: [{
+                label: 'Cantidad',
+                data: [
+                    {{ stats_generales.casos_urgentes }},
+                    {{ stats_generales.casos_alta_prioridad }},
+                    {{ stats_generales.casos_ultima_semana }},
+                    {{ stats_generales.casos_ultimo_mes }}
+                ],
+                backgroundColor: [
+                    'rgba(220, 53, 69, 0.8)',
+                    'rgba(255, 193, 7, 0.8)',
+                    'rgba(13, 110, 253, 0.8)',
+                    'rgba(111, 66, 193, 0.8)'
+                ],
+                borderColor: [
+                    'rgba(220, 53, 69, 1)',
+                    'rgba(255, 193, 7, 1)',
+                    'rgba(13, 110, 253, 1)',
+                    'rgba(111, 66, 193, 1)'
+                ],
+                borderWidth: 2
+            }]
+        },
+        options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                }
+            },
+            scales: {
+                x: {
+                    beginAtZero: true,
+                    ticks: {
+                        stepSize: 1
+                    }
+                }
+            }
+        }
+    });
+
+    // Gráfica por Tipo (Bar)
+    const ctxTipos = document.getElementById('chartTipos').getContext('2d');
+    new Chart(ctxTipos, {
+        type: 'bar',
+        data: {
+            labels: [
+                {% for stat in stats_por_tipo %}'{{ stat.0|title }}'{% if not forloop.last %},{% endif %}{% endfor %}
+            ],
+            datasets: [{
+                label: 'Cantidad de Casos',
+                data: [
+                    {% for stat in stats_por_tipo %}{{ stat.1 }}{% if not forloop.last %},{% endif %}{% endfor %}
+                ],
+                backgroundColor: 'rgba(13, 110, 253, 0.8)',
+                borderColor: 'rgba(13, 110, 253, 1)',
+                borderWidth: 2
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        stepSize: 1
+                    }
+                }
+            }
+        }
+    });
+
+    // Gráfica por Canal (Pie)
+    const ctxCanales = document.getElementById('chartCanales').getContext('2d');
+    new Chart(ctxCanales, {
+        type: 'pie',
+        data: {
+            labels: [
+                {% for stat in stats_por_canal %}'{{ stat.0|title }}'{% if not forloop.last %},{% endif %}{% endfor %}
+            ],
+            datasets: [{
+                data: [
+                    {% for stat in stats_por_canal %}{{ stat.1 }}{% if not forloop.last %},{% endif %}{% endfor %}
+                ],
+                backgroundColor: [
+                    'rgba(13, 110, 253, 0.8)',
+                    'rgba(25, 135, 84, 0.8)',
+                    'rgba(255, 193, 7, 0.8)',
+                    'rgba(220, 53, 69, 0.8)'
+                ],
+                borderColor: [
+                    'rgba(13, 110, 253, 1)',
+                    'rgba(25, 135, 84, 1)',
+                    'rgba(255, 193, 7, 1)',
+                    'rgba(220, 53, 69, 1)'
+                ],
+                borderWidth: 2
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom'
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                            const percentage = ((context.parsed / total) * 100).toFixed(1);
+                            return context.label + ': ' + context.parsed + ' (' + percentage + '%)';
+                        }
+                    }
+                }
+            }
+        }
+    });
+});
+</script>
+{% endblock %}

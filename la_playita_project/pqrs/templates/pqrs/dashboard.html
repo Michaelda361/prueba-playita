@@ -1,0 +1,402 @@
+{% extends 'core/base.html' %}
+{% load static %}
+{% load humanize %}
+
+{% block title %}Dashboard PQRS{% endblock %}
+
+{% block extra_css %}
+<style>
+    .metric-card {
+        border-radius: 12px;
+        padding: 1.5rem;
+        transition: transform 0.2s, box-shadow 0.2s;
+        border: none;
+        position: relative;
+        overflow: hidden;
+    }
+    .metric-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+    }
+    .metric-icon {
+        font-size: 3rem;
+        opacity: 0.2;
+        position: absolute;
+        right: 1rem;
+        top: 50%;
+        transform: translateY(-50%);
+    }
+    .metric-value {
+        font-size: 2.5rem;
+        font-weight: 700;
+        margin: 0;
+    }
+    .metric-label {
+        color: #6c757d;
+        font-size: 0.875rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-top: 0.5rem;
+    }
+    .metric-trend {
+        font-size: 0.875rem;
+        font-weight: 600;
+        margin-top: 0.25rem;
+    }
+    .metric-trend.up { color: #198754; }
+    .metric-trend.down { color: #dc3545; }
+    
+    .urgent-case {
+        border-left: 4px solid #dc3545;
+        padding: 1rem;
+        margin-bottom: 0.75rem;
+        background: #fff;
+        border-radius: 8px;
+        transition: all 0.2s;
+    }
+    .urgent-case:hover {
+        background: #f8f9fa;
+        transform: translateX(5px);
+    }
+    .sla-countdown {
+        font-weight: 700;
+        color: #dc3545;
+    }
+    .sla-countdown.warning { color: #ffc107; }
+    .sla-countdown.ok { color: #198754; }
+    
+    .case-quick-item {
+        padding: 0.75rem;
+        border-bottom: 1px solid #e9ecef;
+        transition: background 0.2s;
+    }
+    .case-quick-item:hover {
+        background: #f8f9fa;
+    }
+    .case-quick-item:last-child {
+        border-bottom: none;
+    }
+    
+    .dashboard-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 2rem;
+        border-radius: 12px;
+        margin-bottom: 2rem;
+    }
+    
+    .quick-action-btn {
+        border-radius: 50px;
+        padding: 0.75rem 1.5rem;
+        font-weight: 600;
+        transition: all 0.2s;
+    }
+    .quick-action-btn:hover {
+        transform: scale(1.05);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb bg-light p-3 rounded">
+            <li class="breadcrumb-item">
+                <a href="{% url 'dashboard' %}"><i class="bi bi-house-door"></i> Inicio</a>
+            </li>
+            <li class="breadcrumb-item active" aria-current="page">
+                <i class="bi bi-headset"></i> PQRS - Dashboard
+            </li>
+        </ol>
+    </nav>
+
+    <!-- Header con explicación -->
+    <div class="dashboard-header shadow-lg">
+        <div class="d-flex justify-content-between align-items-start">
+            <div class="flex-grow-1">
+                <h2 class="mb-2">
+                    <i class="bi bi-speedometer2"></i> Dashboard PQRS
+                </h2>
+                <p class="mb-3 opacity-75">
+                    Bienvenido, {{ user.get_full_name|default:user.username }}
+                </p>
+                <div class="alert alert-light border-0 bg-white bg-opacity-25 mb-0">
+                    <h6 class="mb-2">
+                        <i class="bi bi-info-circle"></i> ¿Qué es PQRS?
+                    </h6>
+                    <p class="mb-0 small">
+                        <strong>P</strong>eticiones, <strong>Q</strong>uejas, <strong>R</strong>eclamos y <strong>S</strong>ugerencias.
+                        Sistema para gestionar y dar seguimiento a las solicitudes de los clientes.
+                    </p>
+                </div>
+            </div>
+            <div>
+                <a href="{% url 'pqrs:pqrs_create' %}" class="btn btn-light btn-lg quick-action-btn">
+                    <i class="bi bi-plus-circle"></i> Registrar Nuevo Caso
+                </a>
+                <div class="mt-2">
+                    <a href="{% url 'pqrs:pqrs_list' %}" class="btn btn-outline-light btn-sm">
+                        <i class="bi bi-list-ul"></i> Ver Todos los Casos
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- KPIs -->
+    <div class="row mb-4">
+        <div class="col-md-3 mb-3">
+            <div class="metric-card bg-info text-white shadow">
+                <div class="metric-icon">🆕</div>
+                <div class="metric-value">{{ stats.casos_nuevos }}</div>
+                <div class="metric-label text-white">Casos Nuevos</div>
+                {% if variacion_semanal %}
+                <div class="metric-trend {% if variacion_semanal > 0 %}up{% else %}down{% endif %}">
+                    <i class="bi bi-arrow-{% if variacion_semanal > 0 %}up{% else %}down{% endif %}"></i>
+                    {{ variacion_semanal|floatformat:1 }}% vs semana anterior
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="metric-card bg-warning text-dark shadow">
+                <div class="metric-icon">⏳</div>
+                <div class="metric-value">{{ stats.casos_en_proceso }}</div>
+                <div class="metric-label">En Proceso</div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="metric-card bg-success text-white shadow">
+                <div class="metric-icon">✅</div>
+                <div class="metric-value">{{ stats.casos_resueltos }}</div>
+                <div class="metric-label text-white">Resueltos</div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="metric-card bg-danger text-white shadow">
+                <div class="metric-icon">🚨</div>
+                <div class="metric-value">{{ casos_sla_critico|length }}</div>
+                <div class="metric-label text-white">SLA Crítico</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Casos Urgentes -->
+        <div class="col-md-6 mb-4">
+            <div class="card shadow-sm">
+                <div class="card-header bg-danger text-white">
+                    <h5 class="mb-0">
+                        <i class="bi bi-exclamation-triangle-fill"></i> Casos Urgentes
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% if casos_urgentes %}
+                        {% for caso in casos_urgentes %}
+                        <div class="urgent-case">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div class="flex-grow-1">
+                                    <h6 class="mb-1">
+                                        <a href="{% url 'pqrs:pqrs_detail' caso.id %}" class="text-decoration-none">
+                                            {{ caso.numero_caso }}
+                                        </a>
+                                    </h6>
+                                    <p class="mb-1 text-muted small">
+                                        {{ caso.get_tipo_display }} - {{ caso.cliente.nombres }} {{ caso.cliente.apellidos }}
+                                    </p>
+                                    <span class="badge bg-danger">{{ caso.get_prioridad_display }}</span>
+                                    <span class="badge bg-secondary">{{ caso.get_estado_display }}</span>
+                                </div>
+                                <div class="text-end">
+                                    <div class="sla-countdown">
+                                        <i class="bi bi-clock"></i>
+                                        {{ caso.fecha_creacion|timesince }}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <p class="text-center text-muted py-4">
+                            <i class="bi bi-check-circle" style="font-size: 3rem;"></i><br>
+                            No hay casos urgentes en este momento
+                        </p>
+                    {% endif %}
+                </div>
+                <div class="card-footer bg-light">
+                    <a href="{% url 'pqrs:pqrs_list' %}?prioridad=urgente" class="btn btn-sm btn-outline-danger">
+                        Ver todos los casos urgentes <i class="bi bi-arrow-right"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Mis Casos Pendientes -->
+        <div class="col-md-6 mb-4">
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">
+                        <i class="bi bi-person-check-fill"></i> Mis Casos Pendientes
+                    </h5>
+                </div>
+                <div class="card-body p-0">
+                    {% if mis_casos %}
+                        {% for caso in mis_casos|slice:":5" %}
+                        <div class="case-quick-item">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <a href="{% url 'pqrs:pqrs_detail' caso.id %}" class="text-decoration-none fw-bold">
+                                        {{ caso.numero_caso }}
+                                    </a>
+                                    <span class="text-muted small d-block">
+                                        {{ caso.get_tipo_display }} - {{ caso.cliente.nombres }}
+                                    </span>
+                                </div>
+                                <div class="text-end">
+                                    {% if caso.prioridad == 'urgente' %}
+                                        <span class="badge bg-danger">{{ caso.get_prioridad_display }}</span>
+                                    {% elif caso.prioridad == 'alta' %}
+                                        <span class="badge bg-warning text-dark">{{ caso.get_prioridad_display }}</span>
+                                    {% else %}
+                                        <span class="badge bg-info">{{ caso.get_prioridad_display }}</span>
+                                    {% endif %}
+                                    <span class="badge bg-secondary">{{ caso.get_estado_display }}</span>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <p class="text-center text-muted py-4">
+                            <i class="bi bi-inbox" style="font-size: 3rem;"></i><br>
+                            No tienes casos pendientes
+                        </p>
+                    {% endif %}
+                </div>
+                <div class="card-footer bg-light">
+                    <a href="{% url 'pqrs:pqrs_list' %}?mis_casos=1" class="btn btn-sm btn-outline-primary">
+                        Ver todos mis casos <i class="bi bi-arrow-right"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Casos con SLA Crítico -->
+    {% if casos_sla_critico %}
+    <div class="row">
+        <div class="col-12 mb-4">
+            <div class="card shadow-sm border-danger">
+                <div class="card-header bg-danger text-white">
+                    <h5 class="mb-0">
+                        <i class="bi bi-alarm-fill"></i> Casos con SLA Crítico (< 2 horas)
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Caso</th>
+                                    <th>Tipo</th>
+                                    <th>Cliente</th>
+                                    <th>Asignado</th>
+                                    <th>Tiempo Restante</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in casos_sla_critico %}
+                                <tr>
+                                    <td><strong>{{ item.caso.numero_caso }}</strong></td>
+                                    <td>{{ item.caso.get_tipo_display }}</td>
+                                    <td>{{ item.caso.cliente.nombres }} {{ item.caso.cliente.apellidos }}</td>
+                                    <td>
+                                        {% if item.caso.asignado_a %}
+                                            {{ item.caso.asignado_a.get_full_name|default:item.caso.asignado_a.username }}
+                                        {% else %}
+                                            <span class="text-muted">Sin asignar</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <span class="sla-countdown {% if item.horas_restantes < 1 %}danger{% else %}warning{% endif %}">
+                                            <i class="bi bi-hourglass-split"></i>
+                                            {{ item.horas_restantes|floatformat:1 }}h
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <a href="{% url 'pqrs:pqrs_detail' item.caso.id %}" class="btn btn-sm btn-outline-primary">
+                                            <i class="bi bi-eye"></i> Ver
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Gráfica de Tendencia -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0">
+                        <i class="bi bi-graph-up"></i> Tendencia de Casos (Últimos 30 días)
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="chartTendencia" height="80"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Gráfica de tendencia
+    const ctx = document.getElementById('chartTendencia').getContext('2d');
+    const tendenciaData = {{ tendencia|safe }};
+    
+    new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: tendenciaData.map(d => d.dia),
+            datasets: [{
+                label: 'Casos Creados',
+                data: tendenciaData.map(d => d.total),
+                borderColor: '#667eea',
+                backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                tension: 0.4,
+                fill: true
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: {
+                    display: false
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        stepSize: 1
+                    }
+                }
+            }
+        }
+    });
+});
+</script>
+{% endblock %}

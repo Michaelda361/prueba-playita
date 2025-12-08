@@ -1,0 +1,113 @@
+<!-- Flujo Visual del Proceso PQRS -->
+<div class="card mb-4 border-0 shadow-sm">
+    <div class="card-body">
+        <h6 class="text-muted mb-3">
+            <i class="bi bi-diagram-3"></i> Flujo del Proceso PQRS
+        </h6>
+        <div class="process-flow">
+            <div class="row text-center">
+                <!-- Paso 1: Registro -->
+                <div class="col">
+                    <div class="process-step {% if current_step == 'registro' %}active{% elif paso_completado.registro %}completed{% endif %}">
+                        <div class="step-icon">
+                            {% if paso_completado.registro %}
+                                <i class="bi bi-check-circle-fill text-success"></i>
+                            {% else %}
+                                <i class="bi bi-1-circle"></i>
+                            {% endif %}
+                        </div>
+                        <div class="step-label">Registro</div>
+                        <small class="text-muted">Crear caso</small>
+                    </div>
+                </div>
+                
+                <div class="col-auto d-flex align-items-center">
+                    <i class="bi bi-arrow-right text-muted"></i>
+                </div>
+                
+                <!-- Paso 2: Asignación -->
+                <div class="col">
+                    <div class="process-step {% if current_step == 'asignacion' %}active{% elif paso_completado.asignacion %}completed{% endif %}">
+                        <div class="step-icon">
+                            {% if paso_completado.asignacion %}
+                                <i class="bi bi-check-circle-fill text-success"></i>
+                            {% else %}
+                                <i class="bi bi-2-circle"></i>
+                            {% endif %}
+                        </div>
+                        <div class="step-label">Asignación</div>
+                        <small class="text-muted">Asignar responsable</small>
+                    </div>
+                </div>
+                
+                <div class="col-auto d-flex align-items-center">
+                    <i class="bi bi-arrow-right text-muted"></i>
+                </div>
+                
+                <!-- Paso 3: Gestión -->
+                <div class="col">
+                    <div class="process-step {% if current_step == 'gestion' %}active{% elif paso_completado.gestion %}completed{% endif %}">
+                        <div class="step-icon">
+                            {% if paso_completado.gestion %}
+                                <i class="bi bi-check-circle-fill text-success"></i>
+                            {% else %}
+                                <i class="bi bi-3-circle"></i>
+                            {% endif %}
+                        </div>
+                        <div class="step-label">Gestión</div>
+                        <small class="text-muted">Responder y resolver</small>
+                    </div>
+                </div>
+                
+                <div class="col-auto d-flex align-items-center">
+                    <i class="bi bi-arrow-right text-muted"></i>
+                </div>
+                
+                <!-- Paso 4: Cierre -->
+                <div class="col">
+                    <div class="process-step {% if current_step == 'cierre' %}active{% elif paso_completado.cierre %}completed{% endif %}">
+                        <div class="step-icon">
+                            {% if paso_completado.cierre %}
+                                <i class="bi bi-check-circle-fill text-success"></i>
+                            {% else %}
+                                <i class="bi bi-4-circle"></i>
+                            {% endif %}
+                        </div>
+                        <div class="step-label">Cierre</div>
+                        <small class="text-muted">Finalizar caso</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.process-flow {
+    padding: 1rem 0;
+}
+.process-step {
+    padding: 1rem;
+    border-radius: 8px;
+    transition: all 0.3s;
+}
+.process-step.active {
+    background: #e7f3ff;
+    border: 2px solid #0d6efd;
+}
+.process-step.completed {
+    background: #d1e7dd;
+}
+.step-icon {
+    font-size: 2rem;
+    margin-bottom: 0.5rem;
+}
+.step-label {
+    font-weight: 600;
+    font-size: 0.9rem;
+}
+.process-step small {
+    display: block;
+    font-size: 0.75rem;
+}
+</style>

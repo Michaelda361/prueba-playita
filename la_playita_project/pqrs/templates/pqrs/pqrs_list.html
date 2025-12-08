@@ -12,11 +12,79 @@
         .bg-orange {
             background-color: orange;
         }
+        
+        /* Estilos mejorados para SLA */
+        .badge {
+            font-size: 0.85rem;
+            padding: 0.5rem 0.75rem;
+            font-weight: 600;
+        }
+        
+        .badge.bg-danger {
+            animation: pulse-danger 2s infinite;
+        }
+        
+        @keyframes pulse-danger {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        
+        .table td {
+            vertical-align: middle;
+        }
+        
+        /* Tooltip personalizado */
+        .tooltip-inner {
+            max-width: 300px;
+            text-align: left;
+        }
     </style>
 {% endblock %}
 
 {% block content %}
 <div class="container mt-4">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb bg-light p-3 rounded">
+            <li class="breadcrumb-item">
+                <a href="{% url 'dashboard' %}"><i class="bi bi-house-door"></i> Inicio</a>
+            </li>
+            <li class="breadcrumb-item">
+                <a href="{% url 'pqrs:pqrs_dashboard' %}"><i class="bi bi-speedometer2"></i> Dashboard PQRS</a>
+            </li>
+            <li class="breadcrumb-item active" aria-current="page">
+                <i class="bi bi-list-ul"></i> Lista de Casos
+            </li>
+        </ol>
+    </nav>
+
+    <!-- Ayuda rápida -->
+    <div class="alert alert-primary alert-dismissible fade show" role="alert">
+        <h6 class="alert-heading">
+            <i class="bi bi-lightbulb"></i> Guía Rápida
+        </h6>
+        <p class="mb-2"><strong>Flujo del proceso:</strong></p>
+        <div class="row small">
+            <div class="col-md-3">
+                <strong>1. Registro</strong><br>
+                Cliente o vendedor crea el caso
+            </div>
+            <div class="col-md-3">
+                <strong>2. Asignación</strong><br>
+                Se asigna a un responsable
+            </div>
+            <div class="col-md-3">
+                <strong>3. Gestión</strong><br>
+                Se responde y resuelve el caso
+            </div>
+            <div class="col-md-3">
+                <strong>4. Cierre</strong><br>
+                Se cierra y califica el servicio
+            </div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+
     <!-- Summary Stats -->
     <div class="row mb-4">
         <div class="col-md-3">
@@ -64,15 +132,48 @@
     <div class="card shadow-sm">
         <div class="card-header d-flex justify-content-between align-items-center bg-light">
             <h4 class="mb-0 text-primary">Historial de PQRS</h4>
-            <a href="{% url 'pqrs:pqrs_create' %}" class="btn btn-primary">
-                <i class="bi bi-plus-circle"></i> Registrar PQRS
-            </a>
+            <div>
+                {% if user|has_role:'Administrador' %}
+                <a href="{% url 'pqrs:pqrs_estadisticas' %}" class="btn btn-info me-2">
+                    <i class="bi bi-graph-up"></i> Estadísticas
+                </a>
+                {% endif %}
+                <a href="{% url 'pqrs:pqrs_create' %}" class="btn btn-primary">
+                    <i class="bi bi-plus-circle"></i> Registrar PQRS
+                </a>
+            </div>
         </div>
         <div class="card-body">
+            <!-- Leyenda SLA -->
+            <div class="alert alert-info alert-dismissible fade show mb-3" role="alert">
+                <h6 class="alert-heading">
+                    <i class="bi bi-info-circle-fill"></i> Indicadores de Tiempo Límite de Atención
+                </h6>
+                <div class="row">
+                    <div class="col-md-3">
+                        <span class="badge bg-success"><i class="bi bi-check-circle-fill"></i> En tiempo</span>
+                        <small class="d-block text-muted">Más de 6 horas restantes</small>
+                    </div>
+                    <div class="col-md-3">
+                        <span class="badge bg-warning text-dark"><i class="bi bi-hourglass-split"></i> X.Xh restantes</span>
+                        <small class="d-block text-muted">Entre 2 y 6 horas restantes</small>
+                    </div>
+                    <div class="col-md-3">
+                        <span class="badge bg-danger"><i class="bi bi-alarm-fill"></i> X.Xh restantes</span>
+                        <small class="d-block text-muted">Menos de 2 horas (crítico)</small>
+                    </div>
+                    <div class="col-md-3">
+                        <span class="badge bg-danger"><i class="bi bi-exclamation-triangle-fill"></i> VENCIDO</span>
+                        <small class="d-block text-muted">Tiempo límite superado</small>
+                    </div>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+
             <form method="get" class="mb-3">
-                <div class="row g-2">
-                    <div class="col-md-6">
-                        <input type="text" class="form-control" name="q" placeholder="Buscar por cliente..." value="{{ request.GET.q }}">
+                <div class="row g-2 mb-2">
+                    <div class="col-md-5">
+                        <input type="text" class="form-control" name="q" placeholder="Buscar por cliente o número de caso..." value="{{ request.GET.q }}">
                     </div>
                     <div class="col-md-2">
                         <select name="tipo" class="form-select">
@@ -90,10 +191,20 @@
                             {% endfor %}
                         </select>
                     </div>
-                    <div class="col-md-2">
+                    <div class="col-md-3">
                         <button class="btn btn-primary w-100" type="submit">
                             <i class="bi bi-search"></i> Filtrar
                         </button>
+                    </div>
+                </div>
+                <div class="row g-2">
+                    <div class="col-md-12">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="mis_casos" id="mis_casos" value="1" {% if mis_casos %}checked{% endif %} onchange="this.form.submit()">
+                            <label class="form-check-label" for="mis_casos">
+                                <i class="bi bi-person-check"></i> Mostrar solo mis casos asignados
+                            </label>
+                        </div>
                     </div>
                 </div>
             </form>
@@ -105,8 +216,12 @@
                             <th>Tipo</th>
                             <th>Prioridad</th>
                             <th>Cliente</th>
-                            <th>Registrado por</th>
+                            <th>Asignado a</th>
                             <th>Estado</th>
+                            <th>
+                                <i class="bi bi-clock-history"></i> Tiempo Límite
+                                <i class="bi bi-info-circle text-muted" data-bs-toggle="tooltip" title="Tiempo máximo de respuesta según tipo y prioridad del caso"></i>
+                            </th>
                             <th>Fecha Creación</th>
                             <th class="text-center">Acciones</th>
                         </tr>
@@ -128,15 +243,44 @@
                                 {% endif %}
                             </td>
                             <td>{{ p.cliente.nombres }} {{ p.cliente.apellidos }}</td>
-                            <td>{{ p.creado_por.get_full_name|default:p.creado_por.username }}</td>
+                            <td>
+                                {% if p.asignado_a %}
+                                    <i class="bi bi-person-fill"></i> {{ p.asignado_a.get_full_name|default:p.asignado_a.username }}
+                                {% else %}
+                                    <span class="text-muted">Sin asignar</span>
+                                {% endif %}
+                            </td>
                             <td><span class="badge {{ p.estado|status_badge }}">{{ p.get_estado_display }}</span></td>
+                            <td>
+                                {% if p.sla_estado == 'vencido' %}
+                                    <span class="badge bg-danger" data-bs-toggle="tooltip" title="Tiempo límite vencido. Requiere atención inmediata">
+                                        <i class="bi bi-exclamation-triangle-fill"></i> VENCIDO
+                                    </span>
+                                {% elif p.sla_estado == 'critico' %}
+                                    <span class="badge bg-danger" data-bs-toggle="tooltip" title="Quedan {{ p.sla_horas_restantes }} horas. ¡Atención urgente!">
+                                        <i class="bi bi-alarm-fill"></i> {{ p.sla_horas_restantes }}h restantes
+                                    </span>
+                                {% elif p.sla_estado == 'warning' %}
+                                    <span class="badge bg-warning text-dark" data-bs-toggle="tooltip" title="Quedan {{ p.sla_horas_restantes }} horas para vencimiento">
+                                        <i class="bi bi-hourglass-split"></i> {{ p.sla_horas_restantes }}h restantes
+                                    </span>
+                                {% elif p.sla_estado == 'ok' %}
+                                    <span class="badge bg-success" data-bs-toggle="tooltip" title="Dentro del tiempo límite establecido">
+                                        <i class="bi bi-check-circle-fill"></i> En tiempo
+                                    </span>
+                                {% else %}
+                                    <span class="text-muted" data-bs-toggle="tooltip" title="Sin tiempo límite configurado">
+                                        <i class="bi bi-dash-circle"></i> Sin límite
+                                    </span>
+                                {% endif %}
+                            </td>
                             <td>{{ p.fecha_creacion|date:"d/m/Y H:i" }}</td>
                             <td class="text-center">
                                 <a href="{% url 'pqrs:pqrs_detail' p.id %}" class="btn btn-sm btn-outline-primary" data-bs-toggle="tooltip" title="Ver Detalles">
                                     <i class="bi bi-eye"></i>
                                 </a>
                                 {% if user|has_role:'Administrador' %}
-                                <button type="button" class="btn btn-sm btn-outline-danger" onclick="eliminarPqrs('{{ p.id }}', '{% url 'pqrs:pqrs_delete' p.id %}')" data-bs-toggle="tooltip" title="Eliminar">
+                                <button type="button" class="btn btn-sm btn-outline-danger btn-eliminar-pqrs" data-pqrs-id="{{ p.id }}" data-delete-url="{% url 'pqrs:pqrs_delete' p.id %}" data-bs-toggle="tooltip" title="Eliminar">
                                     <i class="bi bi-trash"></i>
                                 </button>
                                 {% endif %}
@@ -179,47 +323,51 @@
 <script>
 document.addEventListener('DOMContentLoaded', function () {
     // Initialize tooltips
-    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
     var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
-        return new bootstrap.Tooltip(tooltipTriggerEl)
-    })
+        return new bootstrap.Tooltip(tooltipTriggerEl);
+    });
 
-    // The javascript for deleting will be moved to a separate file
-    // For now, it is kept here to not lose the functionality
-    window.eliminarPqrs = async function(pqrsId, deleteUrl) {
-        const result = await Swal.fire({
-            title: '¿Estás seguro?',
-            text: "¡No podrás revertir esto!",
-            icon: 'warning',
-            showCancelButton: true,
-            confirmButtonColor: '#d33',
-            cancelButtonColor: '#3085d6',
-            confirmButtonText: 'Sí, ¡elimínalo!',
-            cancelButtonText: 'Cancelar'
-        });
+    // Eliminar PQRS con event delegation
+    document.querySelectorAll('.btn-eliminar-pqrs').forEach(function(btn) {
+        btn.addEventListener('click', async function() {
+            const pqrsId = this.dataset.pqrsId;
+            const deleteUrl = this.dataset.deleteUrl;
+            
+            const result = await Swal.fire({
+                title: '¿Estás seguro?',
+                text: "¡No podrás revertir esto!",
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#d33',
+                cancelButtonColor: '#3085d6',
+                confirmButtonText: 'Sí, ¡elimínalo!',
+                cancelButtonText: 'Cancelar'
+            });
 
-        if (result.isConfirmed) {
-            try {
-                const response = await fetch(deleteUrl, {
-                    method: 'POST',
-                    headers: {
-                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            if (result.isConfirmed) {
+                try {
+                    const response = await fetch(deleteUrl, {
+                        method: 'POST',
+                        headers: {
+                            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                        }
+                    });
+
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.error || 'Error al eliminar el PQRS.');
                     }
-                });
 
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.error || 'Error al eliminar el PQRS.');
+                    Swal.fire('¡Eliminado!', 'El PQRS ha sido eliminado.', 'success').then(() => {
+                        window.location.reload();
+                    });
+                } catch (error) {
+                    Swal.fire('Error', error.message, 'error');
                 }
-
-                // Instead of removing the element, we reload the page to show the correct pagination
-                window.location.reload();
-                
-            } catch (error) {
-                Swal.fire('Error', error.message, 'error');
             }
-        }
-    }
+        });
+    });
 });
 </script>
 {% endblock %}

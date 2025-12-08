@@ -32,23 +32,36 @@ def cliente_list(request):
 @require_POST
 @check_user_role(allowed_roles=['Administrador', 'Vendedor'])
 def cliente_create_ajax(request):
-    """Crea un cliente mediante AJAX desde el POS."""
+    """Crea un cliente mediante AJAX desde el POS o PQRS."""
     try:
-        data = json.loads(request.body)
-        if Cliente.objects.filter(documento=data.get('documento')).exists():
+        # Intentar leer como JSON primero, si falla usar POST data
+        if request.content_type == 'application/json':
+            data = json.loads(request.body)
+            correo = data.get('email') or data.get('correo')
+        else:
+            # FormData desde PQRS
+            data = request.POST
+            correo = data.get('correo')
+        
+        documento = data.get('documento')
+        if Cliente.objects.filter(documento=documento).exists():
             return JsonResponse({'error': 'Ya existe un cliente con este documento.'}, status=400)
+        
         cliente = Cliente.objects.create(
             nombres=data.get('nombres'),
             apellidos=data.get('apellidos'),
-            documento=data.get('documento'),
+            documento=documento,
             telefono=data.get('telefono'),
-            correo=data.get('email'),
+            correo=correo,
         )
+        
         return JsonResponse({
-            'id': cliente.id,
-            'nombres': cliente.nombres,
-            'apellidos': cliente.apellidos,
-            'documento': cliente.documento,
+            'cliente': {
+                'id': cliente.id,
+                'nombres': cliente.nombres,
+                'apellidos': cliente.apellidos,
+                'documento': cliente.documento,
+            }
         })
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=400)
