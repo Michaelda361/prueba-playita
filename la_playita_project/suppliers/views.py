@@ -24,7 +24,7 @@ from django.core.serializers.json import DjangoJSONEncoder
 from users.decorators import check_user_role
 from .models import Proveedor, Reabastecimiento, ReabastecimientoDetalle
 from inventory.models import Producto, Categoria, Lote, MovimientoInventario, TasaIVA
-from inventory.forms import ReabastecimientoForm, ReabastecimientoDetalleFormSet, ProductoForm
+from inventory.forms import ReabastecimientoForm, ReabastecimientoDetalleFormSet, ProductoForm, ProductoAjaxForm
 from suppliers.forms import ReabastecimientoDetalleFormSetEdit
 from .reports import generate_reabastecimiento_pdf, generate_reabastecimiento_excel
 
@@ -976,11 +976,12 @@ def producto_create_ajax(request):
     """Crear un producto vía AJAX."""
     try:
         data = json.loads(request.body)
-        form = ProductoForm(data)
+        form = ProductoAjaxForm(data)
         if form.is_valid():
             producto = form.save(commit=False)
             producto.stock_actual = 0
             producto.costo_promedio = 0
+            producto.creado_por = request.user
             producto.save()
             return JsonResponse({
                 'id': producto.id,

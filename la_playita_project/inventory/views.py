@@ -11,215 +11,22 @@ from django.views.decorators.csrf import csrf_exempt
 from django.utils import timezone
 from django.contrib.auth.decorators import login_required
 
-from .models import Producto, Lote, Categoria, MovimientoInventario
+from .models import Producto, Lote, Categoria, MovimientoInventario, TasaIVA
 from suppliers.models import Proveedor
 from .forms import ProductoForm, LoteForm, CategoriaForm
 from users.decorators import check_user_role
 
 # ----------------------------------------------
-# Vistas de Gestión de Productos
+# Vistas Modernas de Inventario
 # ----------------------------------------------
-
-@never_cache
-@login_required
-@check_user_role(allowed_roles=['Administrador', 'Vendedor'])
-def inventario_list(request):
-    productos = Producto.objects.select_related('categoria').order_by('nombre')
-    categorias = Categoria.objects.all()
-    proveedores = Proveedor.objects.all()
-
-    form = ProductoForm()
-    categoria_form = CategoriaForm()
-    lote_form = LoteForm()
-
-    context = {
-        'productos': productos,
-        'categorias': categorias,
-        'proveedores': proveedores,
-        'form': form,
-        'categoria_form': categoria_form,
-        'lote_form': lote_form,
-        'alert_days_yellow': 60,
-        'alert_days_red': 30,
-    }
-    return render(request, 'inventory/inventario_list.html', context)
-
-@login_required
-def producto_lotes_json(request, pk):
-    print(f"Received pk for producto_lotes_json: {pk}") # Debugging line
-    producto = get_object_or_404(Producto, pk=pk)
-
-    # CORRECCIÓN DE ORM: La relación a proveedor no es directa.
-    # El camino correcto es a través de reabastecimiento_detalle y reabastecimiento:
-    lotes = Lote.objects.filter(producto=producto).order_by('-fecha_entrada')
-
-    movimientos = MovimientoInventario.objects.filter(producto=producto).order_by('-fecha_movimiento')
-
-    lotes_data = []
-    for lote in lotes:
-        # Lógica para obtener el nombre del proveedor de forma segura
-        proveedor_nombre = 'N/A'
-        if lote.reabastecimiento_detalle and \
-           lote.reabastecimiento_detalle.reabastecimiento and \
-           lote.reabastecimiento_detalle.reabastecimiento.proveedor:
-            proveedor_nombre = lote.reabastecimiento_detalle.reabastecimiento.proveedor.nombre_empresa
-
-        # Lógica de fechas segura (para evitar fallos de strftime en None)
-        fecha_caducidad_str = 'N/A'
-        if lote.fecha_caducidad:
-             try:
-                 fecha_caducidad_str = lote.fecha_caducidad.strftime('%Y-%m-%d')
-             except AttributeError:
-                 fecha_caducidad_str = lote.fecha_caducidad.isoformat()
-
-        fecha_entrada_str = 'N/A'
-        if lote.fecha_entrada:
-             fecha_entrada_str = timezone.localtime(lote.fecha_entrada).strftime('%d/%m/%Y %H:%M')
-
-        lotes_data.append({
-            'id': lote.id,
-            'numero_lote': lote.numero_lote,
-            'cantidad_disponible': lote.cantidad_disponible,
-            # Asegura un valor float válido (0.0) si es None
-            'costo_unitario_lote': float(lote.costo_unitario_lote) if lote.costo_unitario_lote is not None else 0.0,
-            'fecha_caducidad': fecha_caducidad_str,
-            'fecha_entrada': fecha_entrada_str,
-            'proveedor': proveedor_nombre, # Se usa el nombre de proveedor seguro
-        })
-
-    movimientos_data = [{
-        # Asegura que la fecha de movimiento no sea nula antes de formatear
-        'fecha_movimiento': timezone.localtime(m.fecha_movimiento).strftime('%d/%m/%Y %H:%M') if m.fecha_movimiento else 'N/A',
-        'tipo_movimiento': m.tipo_movimiento,
-        'cantidad': m.cantidad,
-        'descripcion': m.descripcion or '', # Asegura una cadena vacía si es NULL
-    } for m in movimientos]
-
-    # Lógica para el último proveedor (también debe usar el camino correcto)
-    ultimo_proveedor = 'N/A'
-    if lotes.exists():
-        primer_lote = lotes.first()
-        if primer_lote.reabastecimiento_detalle and primer_lote.reabastecimiento_detalle.reabastecimiento and primer_lote.reabastecimiento_detalle.reabastecimiento.proveedor:
-            ultimo_proveedor = primer_lote.reabastecimiento_detalle.reabastecimiento.proveedor.nombre_empresa
-
-    data = {
-        'id': producto.pk,
-        'nombre': producto.nombre,
-        'descripcion': producto.descripcion or '', # Asegura una cadena vacía si es NULL
-        # Asegura un float válido para precio_unitario si es None
-        'precio_unitario': float(producto.precio_unitario) if producto.precio_unitario is not None else 0.0,
-        'stock_actual': producto.stock_actual,
-        'stock_minimo': producto.stock_minimo,
-        # Maneja la relación Categoria si por alguna razón fuera None
-        'categoria': producto.categoria.nombre if producto.categoria else 'N/A',
-        'lotes': lotes_data,
-        'movimientos': movimientos_data,
-        'ultimo_proveedor': ultimo_proveedor,
-        'costo_promedio': float(producto.costo_promedio) if producto.costo_promedio is not None else 0.0,
-    }
-    return JsonResponse(data)
-
-@login_required
-def lote_create_form_ajax(request, producto_pk):
-    producto = get_object_or_404(Producto, pk=producto_pk)
-    form = LoteForm(initial={'producto': producto})
-    return render(request, 'inventory/_lote_form.html', {'form': form, 'producto': producto})
 
 
 @never_cache
 @login_required
 @check_user_role(allowed_roles=['Administrador', 'Vendedor'])
 def alertas_stock_list(request):
-    productos = Producto.objects.filter(stock_actual__lt=models.F('stock_minimo')).select_related('categoria')
-    form = ProductoForm()
-    context = {
-        'productos': productos,
-        'form': form,
-        'alertas_stock': True,
-    }
-    return render(request, 'inventory/inventario_list.html', context)
-
-@never_cache
-@login_required
-@require_POST
-@check_user_role(allowed_roles=['Administrador', 'Vendedor'])
-def producto_create(request):
-    form = ProductoForm(request.POST)
-    if form.is_valid():
-        form.save()
-        messages.success(request, 'Producto creado exitosamente.')
-    else:
-        for field, errors in form.errors.items():
-            for error in errors:
-                messages.error(request, f"Error en {form.fields[field].label}: {error}")
-    return redirect('inventory:inventario_list')
-
-@login_required
-@require_POST
-@check_user_role(allowed_roles=['Administrador', 'Vendedor'])
-def producto_create_ajax(request):
-    try:
-        data = json.loads(request.body)
-    except json.JSONDecodeError:
-        return JsonResponse({'errors': 'JSON inválido'}, status=400)
-
-    form = ProductoForm(data)
-    if form.is_valid():
-        producto = form.save()
-        return JsonResponse({
-            'id': producto.pk,
-            'nombre': producto.nombre,
-            'categoria_nombre': producto.categoria.nombre if producto.categoria else 'N/A',
-            'precio_unitario': str(producto.precio_unitario or 0),
-            'stock_actual': producto.stock_actual,
-            'stock_minimo': producto.stock_minimo,
-        })
-    else:
-        return JsonResponse({'errors': form.errors}, status=400)
-
-@login_required
-def producto_detail_json(request, pk):
-    """
-    Devuelve los detalles de un producto en formato JSON para la edición en modal.
-    (Aplicamos correcciones de nulabilidad aquí también para consistencia)
-    """
-    producto = get_object_or_404(Producto, pk=pk)
-    data = {
-        'id': producto.pk,
-        'nombre': producto.nombre,
-        # Corrección: Asegura que sea una cadena '0' o el valor si es None
-        'precio_unitario': str(producto.precio_unitario) if producto.precio_unitario is not None else '0',
-        'descripcion': producto.descripcion or '', # Corrección: Asegura una cadena vacía
-        'stock_minimo': producto.stock_minimo,
-        'categoria_id': producto.categoria_id,
-        'tasa_iva_id': producto.tasa_iva_id,
-    }
-    return JsonResponse(data)
-
-@never_cache
-@login_required
-@require_POST # This view now only handles POST requests
-@check_user_role(allowed_roles=['Administrador', 'Vendedor'])
-def producto_update(request, pk):
-    producto = get_object_or_404(Producto, pk=pk)
-    try:
-        data = json.loads(request.body)
-    except json.JSONDecodeError:
-        return JsonResponse({'errors': 'JSON inválido'}, status=400)
-    
-    form = ProductoForm(data, instance=producto)
-    if form.is_valid():
-        producto = form.save()
-        return JsonResponse({
-            'id': producto.pk,
-            'nombre': producto.nombre,
-            'categoria_nombre': producto.categoria.nombre if producto.categoria else 'N/A', # Corrección: Manejo de categoria nula
-            'precio_unitario': str(producto.precio_unitario or 0),
-            'stock_actual': producto.stock_actual,
-            'stock_minimo': producto.stock_minimo,
-        })
-    else:
-        return JsonResponse({'errors': form.errors}, status=400)
+    """Vista moderna de alertas de stock bajo"""
+    return render(request, 'inventory/alertas_modern.html')
 
 @never_cache
 @login_required
@@ -229,7 +36,7 @@ def producto_delete(request, pk):
     producto = get_object_or_404(Producto, pk=pk)
     producto.delete()
     messages.success(request, 'Producto eliminado exitosamente.')
-    return redirect('inventory:inventario_list')
+    return redirect('inventory:productos_list')
 
 @never_cache
 @login_required
@@ -258,31 +65,7 @@ def categoria_create(request):
         for field, errors in form.errors.items():
             for error in errors:
                 messages.error(request, f"Error en {form.fields[field].label}: {error}")
-    return redirect('inventory:inventario_list')
-
-# ----------------------------------------------
-# Vistas de Gestión de Lotes (Trazabilidad)
-# ----------------------------------------------
-
-@never_cache
-@login_required
-@check_user_role(allowed_roles=['Administrador'])
-def lote_list(request, producto_pk):
-    producto = get_object_or_404(Producto, pk=producto_pk)
-    lotes = Lote.objects.filter(producto=producto).order_by('-fecha_entrada')
-    form = LoteForm(initial={'producto': producto})
-    
-    today = date.today()
-    thirty_days_from_now = today + timedelta(days=30)
-
-    context = {
-        'lotes': lotes,
-        'producto': producto,
-        'form': form,
-        'today': today,
-        'thirty_days_from_now': thirty_days_from_now,
-    }
-    return render(request, 'inventory/lote_list.html', context)
+    return redirect('inventory:productos_list')
 
 @login_required
 @check_user_role(allowed_roles=['Administrador'])
@@ -321,7 +104,7 @@ def descartar_lote(request, lote_id):
                         f'Cantidad restante: {lote.cantidad_disponible}'
                     )
                     
-                    return redirect('inventory:inventario_list')
+                    return redirect('inventory:productos_list')
             except Exception as e:
                 messages.error(request, f'❌ Error al descartar productos: {str(e)}')
     else:
@@ -333,3 +116,129 @@ def descartar_lote(request, lote_id):
     }
     
     return render(request, 'inventory/descartar_lote.html', context)
+
+
+
+# ----------------------------------------------
+# Gestión de Lotes
+# ----------------------------------------------
+
+@never_cache
+@login_required
+@check_user_role(allowed_roles=['Administrador', 'Vendedor'])
+def dashboard_inventario(request):
+    """Vista principal del dashboard de inventario"""
+    return render(request, 'inventory/dashboard.html')
+
+
+
+@never_cache
+@login_required
+@check_user_role(allowed_roles=['Administrador', 'Vendedor'])
+def productos_list_modern(request):
+    """Vista moderna de listado de productos con filtros"""
+    return render(request, 'inventory/productos_list_modern.html')
+
+
+
+@never_cache
+@login_required
+@check_user_role(allowed_roles=['Administrador', 'Vendedor'])
+def producto_create_form(request):
+    """Vista para mostrar y procesar el formulario de creación de producto"""
+    if request.method == 'POST':
+        form = ProductoForm(request.POST)
+        if form.is_valid():
+            producto = form.save()
+            messages.success(request, f'Producto "{producto.nombre}" creado exitosamente.')
+            return redirect('inventory:productos_list')
+        else:
+            messages.error(request, 'Error al crear el producto. Verifica los datos.')
+    else:
+        form = ProductoForm()
+    
+    categorias = Categoria.objects.all()
+    context = {
+        'form': form,
+        'categorias': categorias,
+        'titulo': 'Nuevo Producto',
+        'accion': 'Crear'
+    }
+    return render(request, 'inventory/producto_form.html', context)
+
+
+@never_cache
+@login_required
+@check_user_role(allowed_roles=['Administrador', 'Vendedor'])
+def producto_edit_form(request, pk):
+    """Vista para mostrar y procesar el formulario de edición de producto"""
+    producto = get_object_or_404(Producto, pk=pk)
+    
+    if request.method == 'POST':
+        form = ProductoForm(request.POST, instance=producto)
+        if form.is_valid():
+            producto = form.save()
+            messages.success(request, f'Producto "{producto.nombre}" actualizado exitosamente.')
+            return redirect('inventory:productos_list')
+        else:
+            messages.error(request, 'Error al actualizar el producto. Verifica los datos.')
+    else:
+        form = ProductoForm(instance=producto)
+    
+    categorias = Categoria.objects.all()
+    context = {
+        'form': form,
+        'producto': producto,
+        'categorias': categorias,
+        'titulo': f'Editar Producto: {producto.nombre}',
+        'accion': 'Actualizar'
+    }
+    return render(request, 'inventory/producto_form.html', context)
+
+
+
+@never_cache
+@login_required
+@check_user_role(allowed_roles=['Administrador', 'Vendedor'])
+def producto_detalle(request, pk):
+    """Vista de detalle completo del producto con tabs"""
+    producto = get_object_or_404(Producto, pk=pk)
+    valor_total = producto.stock_actual * producto.costo_promedio
+    
+    context = {
+        'producto': producto,
+        'valor_total': valor_total
+    }
+    return render(request, 'inventory/producto_detalle.html', context)
+
+
+@never_cache
+@login_required
+@check_user_role(allowed_roles=['Administrador', 'Vendedor'])
+def kardex_producto(request, pk):
+    """Vista del kardex de un producto (legacy - redirige a detalle)"""
+    return redirect('inventory:producto_detalle', pk=pk)
+
+
+@never_cache
+@login_required
+@check_user_role(allowed_roles=['Administrador', 'Vendedor'])
+def reabastecimientos_list(request):
+    """Vista moderna de reabastecimientos"""
+    return render(request, 'inventory/reabastecimientos_list.html')
+
+
+@never_cache
+@login_required
+@check_user_role(allowed_roles=['Administrador'])
+def ajustes_list(request):
+    """Vista moderna de ajustes de inventario"""
+    return render(request, 'inventory/ajustes_list.html')
+
+
+@never_cache
+@login_required
+@check_user_role(allowed_roles=['Administrador', 'Vendedor'])
+def reportes(request):
+    """Vista de reportes de inventario"""
+    return render(request, 'inventory/reportes.html')

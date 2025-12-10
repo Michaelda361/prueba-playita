@@ -1,0 +1,630 @@
+{% extends 'core/base.html' %}
+{% load static %}
+{% load humanize %}
+
+{% block title %}Ajustes de Inventario{% endblock %}
+
+{% block extra_css %}
+<style>
+    .ajuste-card {
+        background: white;
+        border-radius: 12px;
+        padding: 1.5rem;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        transition: all 0.2s;
+        margin-bottom: 1rem;
+        border-left: 4px solid;
+    }
+    .ajuste-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+    }
+    .estado-pendiente { border-left-color: #ffc107; background: #fffbf0; }
+    .estado-aprobado { border-left-color: #28a745; background: #f8fff8; }
+    .estado-rechazado { border-left-color: #dc3545; background: #fff5f5; }
+    .estado-aplicado { border-left-color: #17a2b8; background: #f0f9ff; }
+    
+    .diferencia-positiva { color: #28a745; font-weight: bold; }
+    .diferencia-negativa { color: #dc3545; font-weight: bold; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="mb-1">📋 Ajustes de Inventario</h2>
+            <p class="text-muted mb-0">Correcciones y ajustes de stock</p>
+        </div>
+        <div>
+            <button class="btn btn-primary" onclick="mostrarModalNuevo()">
+                <i class="bi bi-plus-circle"></i> Nuevo Ajuste
+            </button>
+        </div>
+    </div>
+
+    <!-- Filtros -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-3">
+                    <label class="form-label small">Estado</label>
+                    <select class="form-select" id="filtro-estado" onchange="aplicarFiltros()">
+                        <option value="">Todos</option>
+                        <option value="pendiente" selected>Pendiente</option>
+                        <option value="aprobado">Aprobado</option>
+                        <option value="rechazado">Rechazado</option>
+                        <option value="aplicado">Aplicado</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small">Motivo</label>
+                    <select class="form-select" id="filtro-motivo" onchange="aplicarFiltros()">
+                        <option value="">Todos</option>
+                        <option value="conteo_fisico">Conteo Físico</option>
+                        <option value="merma">Merma</option>
+                        <option value="robo">Robo</option>
+                        <option value="daño">Daño</option>
+                        <option value="error_sistema">Error Sistema</option>
+                        <option value="otro">Otro</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small">Desde</label>
+                    <input type="date" class="form-control" id="filtro-desde" onchange="aplicarFiltros()">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small">Hasta</label>
+                    <input type="date" class="form-control" id="filtro-hasta" onchange="aplicarFiltros()">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Resumen -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body text-center">
+                    <h3 class="mb-0" id="total-ajustes">0</h3>
+                    <small class="text-muted">Ajustes Totales</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body text-center">
+                    <h3 class="mb-0 text-warning" id="ajustes-pendientes">0</h3>
+                    <small class="text-muted">Pendientes</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body text-center">
+                    <h3 class="mb-0 text-success" id="ajustes-aprobados">0</h3>
+                    <small class="text-muted">Aprobados</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body text-center">
+                    <h3 class="mb-0 text-danger" id="costo-total">$0</h3>
+                    <small class="text-muted">Costo Total</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Lista de Ajustes -->
+    <div id="ajustes-container">
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary"></div>
+            <p class="mt-3 text-muted">Cargando ajustes...</p>
+        </div>
+    </div>
+
+    <!-- Paginación -->
+    <nav aria-label="Paginación" class="mt-4">
+        <ul class="pagination justify-content-center" id="pagination-container"></ul>
+    </nav>
+</div>
+
+<!-- Modal Nuevo Ajuste -->
+<div class="modal fade" id="nuevoModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Nuevo Ajuste de Inventario</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="form-nuevo-ajuste">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Producto *</label>
+                            <select class="form-select" id="nuevo-producto" required onchange="cargarStockActual()">
+                                <option value="">Seleccione...</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Lote (Opcional)</label>
+                            <select class="form-select" id="nuevo-lote">
+                                <option value="">Sin lote específico</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="row g-3 mt-2">
+                        <div class="col-md-4">
+                            <label class="form-label">Stock en Sistema</label>
+                            <input type="number" class="form-control" id="nuevo-stock-sistema" readonly>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Stock Físico Real *</label>
+                            <input type="number" class="form-control" id="nuevo-stock-fisico" required min="0" onchange="calcularDiferencia()">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Diferencia</label>
+                            <input type="number" class="form-control" id="nuevo-diferencia" readonly>
+                        </div>
+                    </div>
+                    
+                    <div class="row g-3 mt-2">
+                        <div class="col-md-6">
+                            <label class="form-label">Motivo *</label>
+                            <select class="form-select" id="nuevo-motivo" required>
+                                <option value="">Seleccione...</option>
+                                <option value="conteo_fisico">Conteo Físico</option>
+                                <option value="merma">Merma</option>
+                                <option value="robo">Robo</option>
+                                <option value="daño">Daño</option>
+                                <option value="error_sistema">Error de Sistema</option>
+                                <option value="otro">Otro</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Costo del Ajuste</label>
+                            <input type="number" class="form-control" id="nuevo-costo" step="0.01" min="0" value="0">
+                        </div>
+                    </div>
+                    
+                    <div class="mt-3">
+                        <label class="form-label">Descripción *</label>
+                        <textarea class="form-control" id="nuevo-descripcion" rows="3" required placeholder="Explique el motivo del ajuste..."></textarea>
+                    </div>
+                    
+                    <div class="alert alert-warning mt-3">
+                        <i class="bi bi-exclamation-triangle"></i>
+                        <strong>Importante:</strong> Este ajuste quedará pendiente de aprobación por un supervisor.
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="guardarNuevoAjuste()">
+                    <i class="bi bi-save"></i> Crear Ajuste
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Detalle -->
+<div class="modal fade" id="detalleModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Detalle del Ajuste</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="detalle-body">
+                <div class="text-center py-4">
+                    <div class="spinner-border text-primary"></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                <button type="button" class="btn btn-success" id="btn-aprobar" onclick="aprobarAjuste()" style="display:none;">
+                    <i class="bi bi-check-circle"></i> Aprobar
+                </button>
+                <button type="button" class="btn btn-danger" id="btn-rechazar" onclick="rechazarAjuste()" style="display:none;">
+                    <i class="bi bi-x-circle"></i> Rechazar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let currentPage = 1;
+let currentFilters = { estado: 'pendiente' };
+let ajusteActual = null;
+
+// Cargar productos
+async function cargarProductos() {
+    try {
+        const response = await fetch('/api/inventory/productos/?page_size=1000');
+        const data = await response.json();
+        
+        const select = document.getElementById('nuevo-producto');
+        data.results.forEach(prod => {
+            const option = document.createElement('option');
+            option.value = prod.id;
+            option.textContent = `${prod.nombre} (Stock: ${prod.stock_actual})`;
+            option.dataset.stock = prod.stock_actual;
+            select.appendChild(option);
+        });
+    } catch (error) {
+        console.error('Error:', error);
+    }
+}
+
+// Cargar stock actual
+function cargarStockActual() {
+    const select = document.getElementById('nuevo-producto');
+    const selectedOption = select.options[select.selectedIndex];
+    
+    if (selectedOption && selectedOption.dataset.stock) {
+        document.getElementById('nuevo-stock-sistema').value = selectedOption.dataset.stock;
+        calcularDiferencia();
+    }
+}
+
+// Calcular diferencia
+function calcularDiferencia() {
+    const stockSistema = parseInt(document.getElementById('nuevo-stock-sistema').value) || 0;
+    const stockFisico = parseInt(document.getElementById('nuevo-stock-fisico').value) || 0;
+    const diferencia = stockFisico - stockSistema;
+    
+    const inputDiferencia = document.getElementById('nuevo-diferencia');
+    inputDiferencia.value = diferencia;
+    
+    if (diferencia > 0) {
+        inputDiferencia.className = 'form-control diferencia-positiva';
+    } else if (diferencia < 0) {
+        inputDiferencia.className = 'form-control diferencia-negativa';
+    } else {
+        inputDiferencia.className = 'form-control';
+    }
+}
+
+// Cargar ajustes
+async function cargarAjustes(page = 1) {
+    try {
+        const params = new URLSearchParams({
+            page: page,
+            ...currentFilters
+        });
+        
+        const response = await fetch(`/api/inventory/ajustes/?${params}`);
+        const data = await response.json();
+        
+        mostrarAjustes(data.results);
+        actualizarResumen(data);
+        actualizarPaginacion(data);
+        
+    } catch (error) {
+        console.error('Error:', error);
+        document.getElementById('ajustes-container').innerHTML = 
+            '<div class="alert alert-danger">Error al cargar ajustes</div>';
+    }
+}
+
+// Mostrar ajustes
+function mostrarAjustes(ajustes) {
+    const container = document.getElementById('ajustes-container');
+    
+    if (ajustes.length === 0) {
+        container.innerHTML = `
+            <div class="text-center py-5">
+                <i class="bi bi-inbox fs-1 text-muted"></i>
+                <p class="mt-3 text-muted">No se encontraron ajustes</p>
+            </div>
+        `;
+        return;
+    }
+    
+    container.innerHTML = ajustes.map(ajuste => {
+        const fecha = new Date(ajuste.fecha_ajuste).toLocaleDateString('es-CO', {
+            year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit'
+        });
+        const estadoClass = `estado-${ajuste.estado}`;
+        const diferenciaClass = ajuste.diferencia > 0 ? 'diferencia-positiva' : 'diferencia-negativa';
+        
+        return `
+            <div class="ajuste-card ${estadoClass}">
+                <div class="row align-items-center">
+                    <div class="col-md-2">
+                        <h5 class="mb-1">#${ajuste.id}</h5>
+                        <small class="text-muted">${fecha}</small>
+                    </div>
+                    <div class="col-md-3">
+                        <strong class="d-block">${ajuste.producto_nombre}</strong>
+                        <small class="text-muted">${ajuste.motivo_display || ajuste.motivo}</small>
+                    </div>
+                    <div class="col-md-2 text-center">
+                        <div>Sistema: <strong>${ajuste.cantidad_sistema}</strong></div>
+                        <div>Físico: <strong>${ajuste.cantidad_fisica}</strong></div>
+                    </div>
+                    <div class="col-md-2 text-center">
+                        <div class="${diferenciaClass} fs-5">
+                            ${ajuste.diferencia > 0 ? '+' : ''}${ajuste.diferencia}
+                        </div>
+                        <small class="text-muted">diferencia</small>
+                    </div>
+                    <div class="col-md-2 text-center">
+                        <span class="badge badge-${ajuste.estado}">${ajuste.estado_display || ajuste.estado.toUpperCase()}</span>
+                        ${ajuste.costo_ajuste > 0 ? `<div class="small text-danger mt-1">$${ajuste.costo_ajuste.toLocaleString('es-CO')}</div>` : ''}
+                    </div>
+                    <div class="col-md-1 text-end">
+                        <button class="btn btn-sm btn-outline-primary" onclick="verDetalle(${ajuste.id})">
+                            <i class="bi bi-eye"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+// Ver detalle
+async function verDetalle(id) {
+    const modal = new bootstrap.Modal(document.getElementById('detalleModal'));
+    modal.show();
+    
+    ajusteActual = id;
+    
+    try {
+        const response = await fetch(`/api/inventory/ajustes/${id}/`);
+        const ajuste = await response.json();
+        
+        const diferenciaClass = ajuste.diferencia > 0 ? 'text-success' : 'text-danger';
+        
+        document.getElementById('detalle-body').innerHTML = `
+            <div class="row">
+                <div class="col-md-6">
+                    <h6>Información del Ajuste</h6>
+                    <table class="table table-sm">
+                        <tr><th>ID:</th><td>#${ajuste.id}</td></tr>
+                        <tr><th>Producto:</th><td>${ajuste.producto_nombre}</td></tr>
+                        <tr><th>Lote:</th><td>${ajuste.lote_numero || 'N/A'}</td></tr>
+                        <tr><th>Motivo:</th><td>${ajuste.motivo_display || ajuste.motivo}</td></tr>
+                        <tr><th>Estado:</th><td><span class="badge badge-${ajuste.estado}">${ajuste.estado.toUpperCase()}</span></td></tr>
+                    </table>
+                </div>
+                <div class="col-md-6">
+                    <h6>Cantidades</h6>
+                    <table class="table table-sm">
+                        <tr><th>Stock Sistema:</th><td>${ajuste.cantidad_sistema}</td></tr>
+                        <tr><th>Stock Físico:</th><td>${ajuste.cantidad_fisica}</td></tr>
+                        <tr><th>Diferencia:</th><td class="${diferenciaClass} fw-bold">${ajuste.diferencia > 0 ? '+' : ''}${ajuste.diferencia}</td></tr>
+                        <tr><th>Costo Ajuste:</th><td class="text-danger">$${ajuste.costo_ajuste.toLocaleString('es-CO')}</td></tr>
+                    </table>
+                </div>
+            </div>
+            
+            <div class="mt-3">
+                <h6>Descripción</h6>
+                <p class="border p-3 rounded bg-light">${ajuste.descripcion || 'Sin descripción'}</p>
+            </div>
+            
+            ${ajuste.observaciones ? `
+                <div class="mt-3">
+                    <h6>Observaciones</h6>
+                    <p class="border p-3 rounded bg-light">${ajuste.observaciones}</p>
+                </div>
+            ` : ''}
+            
+            <div class="mt-3">
+                <h6>Auditoría</h6>
+                <table class="table table-sm">
+                    <tr><th>Ejecutado por:</th><td>${ajuste.usuario_ejecuta_nombre || 'N/A'}</td></tr>
+                    <tr><th>Fecha:</th><td>${new Date(ajuste.fecha_ajuste).toLocaleString('es-CO')}</td></tr>
+                    ${ajuste.usuario_autoriza_nombre ? `
+                        <tr><th>Autorizado por:</th><td>${ajuste.usuario_autoriza_nombre}</td></tr>
+                    ` : ''}
+                </table>
+            </div>
+        `;
+        
+        // Mostrar botones según estado
+        const btnAprobar = document.getElementById('btn-aprobar');
+        const btnRechazar = document.getElementById('btn-rechazar');
+        
+        if (ajuste.estado === 'pendiente') {
+            btnAprobar.style.display = 'block';
+            btnRechazar.style.display = 'block';
+        } else {
+            btnAprobar.style.display = 'none';
+            btnRechazar.style.display = 'none';
+        }
+        
+    } catch (error) {
+        console.error('Error:', error);
+    }
+}
+
+// Aprobar ajuste
+async function aprobarAjuste() {
+    if (!confirm('¿Aprobar este ajuste? Se aplicará al inventario.')) return;
+    
+    try {
+        const response = await fetch(`/api/inventory/ajustes/${ajusteActual}/aprobar/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        if (response.ok) {
+            alert('✅ Ajuste aprobado y aplicado');
+            bootstrap.Modal.getInstance(document.getElementById('detalleModal')).hide();
+            cargarAjustes(currentPage);
+        } else {
+            const error = await response.json();
+            alert('❌ Error: ' + JSON.stringify(error));
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('❌ Error al aprobar ajuste');
+    }
+}
+
+// Rechazar ajuste
+async function rechazarAjuste() {
+    const observaciones = prompt('Motivo del rechazo:');
+    if (!observaciones) return;
+    
+    try {
+        const response = await fetch(`/api/inventory/ajustes/${ajusteActual}/rechazar/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ observaciones })
+        });
+        
+        if (response.ok) {
+            alert('✅ Ajuste rechazado');
+            bootstrap.Modal.getInstance(document.getElementById('detalleModal')).hide();
+            cargarAjustes(currentPage);
+        } else {
+            alert('❌ Error al rechazar ajuste');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('❌ Error al rechazar ajuste');
+    }
+}
+
+// Mostrar modal nuevo
+function mostrarModalNuevo() {
+    const modal = new bootstrap.Modal(document.getElementById('nuevoModal'));
+    document.getElementById('form-nuevo-ajuste').reset();
+    modal.show();
+}
+
+// Guardar nuevo ajuste
+async function guardarNuevoAjuste() {
+    const form = document.getElementById('form-nuevo-ajuste');
+    if (!form.checkValidity()) {
+        form.reportValidity();
+        return;
+    }
+    
+    const data = {
+        producto_id: parseInt(document.getElementById('nuevo-producto').value),
+        lote_id: document.getElementById('nuevo-lote').value ? parseInt(document.getElementById('nuevo-lote').value) : null,
+        cantidad_sistema: parseInt(document.getElementById('nuevo-stock-sistema').value),
+        cantidad_fisica: parseInt(document.getElementById('nuevo-stock-fisico').value),
+        diferencia: parseInt(document.getElementById('nuevo-diferencia').value),
+        motivo: document.getElementById('nuevo-motivo').value,
+        descripcion: document.getElementById('nuevo-descripcion').value,
+        costo_ajuste: parseFloat(document.getElementById('nuevo-costo').value) || 0
+    };
+    
+    try {
+        const response = await fetch('/api/inventory/ajustes/', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(data)
+        });
+        
+        if (response.ok) {
+            alert('✅ Ajuste creado exitosamente. Pendiente de aprobación.');
+            bootstrap.Modal.getInstance(document.getElementById('nuevoModal')).hide();
+            form.reset();
+            cargarAjustes(1);
+        } else {
+            const error = await response.json();
+            alert('❌ Error: ' + JSON.stringify(error));
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('❌ Error al crear ajuste');
+    }
+}
+
+// Aplicar filtros
+function aplicarFiltros() {
+    currentFilters = {};
+    
+    const estado = document.getElementById('filtro-estado').value;
+    if (estado) currentFilters.estado = estado;
+    
+    const motivo = document.getElementById('filtro-motivo').value;
+    if (motivo) currentFilters.motivo = motivo;
+    
+    const desde = document.getElementById('filtro-desde').value;
+    if (desde) currentFilters.fecha_desde = desde;
+    
+    const hasta = document.getElementById('filtro-hasta').value;
+    if (hasta) currentFilters.fecha_hasta = hasta;
+    
+    currentPage = 1;
+    cargarAjustes(1);
+}
+
+// Actualizar resumen
+function actualizarResumen(data) {
+    document.getElementById('total-ajustes').textContent = data.count || 0;
+    
+    const pendientes = data.results.filter(a => a.estado === 'pendiente').length;
+    const aprobados = data.results.filter(a => a.estado === 'aprobado' || a.estado === 'aplicado').length;
+    const costoTotal = data.results.reduce((sum, a) => sum + parseFloat(a.costo_ajuste || 0), 0);
+    
+    document.getElementById('ajustes-pendientes').textContent = pendientes;
+    document.getElementById('ajustes-aprobados').textContent = aprobados;
+    document.getElementById('costo-total').textContent = '$' + costoTotal.toLocaleString('es-CO');
+}
+
+// Actualizar paginación
+function actualizarPaginacion(data) {
+    const container = document.getElementById('pagination-container');
+    const totalPages = Math.ceil(data.count / 25);
+    
+    if (totalPages <= 1) {
+        container.innerHTML = '';
+        return;
+    }
+    
+    let html = `
+        <li class="page-item ${!data.previous ? 'disabled' : ''}">
+            <a class="page-link" href="#" onclick="cargarAjustes(${currentPage - 1}); return false;">Anterior</a>
+        </li>
+    `;
+    
+    for (let i = 1; i <= Math.min(totalPages, 5); i++) {
+        html += `
+            <li class="page-item ${i === currentPage ? 'active' : ''}">
+                <a class="page-link" href="#" onclick="cargarAjustes(${i}); return false;">${i}</a>
+            </li>
+        `;
+    }
+    
+    html += `
+        <li class="page-item ${!data.next ? 'disabled' : ''}">
+            <a class="page-link" href="#" onclick="cargarAjustes(${currentPage + 1}); return false;">Siguiente</a>
+        </li>
+    `;
+    
+    container.innerHTML = html;
+}
+
+// Inicializar
+document.addEventListener('DOMContentLoaded', function() {
+    cargarProductos();
+    cargarAjustes();
+});
+</script>
+{% endblock %}

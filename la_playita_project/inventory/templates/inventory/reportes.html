@@ -1,0 +1,455 @@
+{% extends 'core/base.html' %}
+{% load static %}
+
+{% block title %}Reportes de Inventario{% endblock %}
+
+{% block extra_css %}
+<style>
+    .report-card {
+        background: white;
+        border-radius: 12px;
+        padding: 2rem;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        transition: all 0.2s;
+        cursor: pointer;
+        height: 100%;
+        border-left: 4px solid;
+    }
+    .report-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+    }
+    .report-card.primary { border-left-color: #0d6efd; }
+    .report-card.success { border-left-color: #28a745; }
+    .report-card.warning { border-left-color: #ffc107; }
+    .report-card.danger { border-left-color: #dc3545; }
+    .report-card.info { border-left-color: #17a2b8; }
+    
+    .report-icon {
+        font-size: 3rem;
+        margin-bottom: 1rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Header -->
+    <div class="mb-4">
+        <h2 class="mb-1">📈 Reportes de Inventario</h2>
+        <p class="text-muted mb-0">Genera reportes y análisis del inventario</p>
+    </div>
+
+    <!-- Reportes Disponibles -->
+    <div class="row g-4">
+        <!-- Valorización de Inventario -->
+        <div class="col-md-6 col-lg-4">
+            <div class="report-card primary" onclick="generarReporte('valorizacion')">
+                <div class="text-center">
+                    <div class="report-icon">💰</div>
+                    <h5>Valorización de Inventario</h5>
+                    <p class="text-muted">Valor total del inventario por producto y categoría</p>
+                    <div class="mt-3">
+                        <select class="form-select" id="periodo-valorizacion" onclick="event.stopPropagation()">
+                            <option value="mes_actual">Mes Actual</option>
+                            <option value="mes_anterior">Mes Anterior</option>
+                            <option value="trimestre">Último Trimestre</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Rotación de Productos -->
+        <div class="col-md-6 col-lg-4">
+            <div class="report-card success" onclick="generarReporte('rotacion')">
+                <div class="text-center">
+                    <div class="report-icon">🔄</div>
+                    <h5>Rotación de Productos</h5>
+                    <p class="text-muted">Análisis de rotación y días de inventario</p>
+                    <div class="mt-3">
+                        <select class="form-select" id="periodo-rotacion" onclick="event.stopPropagation()">
+                            <option value="30">Últimos 30 días</option>
+                            <option value="60">Últimos 60 días</option>
+                            <option value="90">Últimos 90 días</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Descartes y Mermas -->
+        <div class="col-md-6 col-lg-4">
+            <div class="report-card danger" onclick="generarReporte('descartes')">
+                <div class="text-center">
+                    <div class="report-icon">🗑️</div>
+                    <h5>Descartes y Mermas</h5>
+                    <p class="text-muted">Productos descartados y su costo</p>
+                    <div class="mt-3">
+                        <select class="form-select" id="periodo-descartes" onclick="event.stopPropagation()">
+                            <option value="mes_actual">Mes Actual</option>
+                            <option value="mes_anterior">Mes Anterior</option>
+                            <option value="trimestre">Último Trimestre</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Movimientos por Producto -->
+        <div class="col-md-6 col-lg-4">
+            <div class="report-card info" onclick="mostrarModalProducto()">
+                <div class="text-center">
+                    <div class="report-icon">📦</div>
+                    <h5>Movimientos por Producto</h5>
+                    <p class="text-muted">Kardex detallado de un producto específico</p>
+                    <div class="mt-3">
+                        <button class="btn btn-outline-info" onclick="event.stopPropagation(); mostrarModalProducto()">
+                            Seleccionar Producto
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Compras por Proveedor -->
+        <div class="col-md-6 col-lg-4">
+            <div class="report-card warning" onclick="generarReporte('compras')">
+                <div class="text-center">
+                    <div class="report-icon">🚚</div>
+                    <h5>Compras por Proveedor</h5>
+                    <p class="text-muted">Análisis de compras y proveedores</p>
+                    <div class="mt-3">
+                        <select class="form-select" id="periodo-compras" onclick="event.stopPropagation()">
+                            <option value="mes_actual">Mes Actual</option>
+                            <option value="mes_anterior">Mes Anterior</option>
+                            <option value="trimestre">Último Trimestre</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Stock por Categoría -->
+        <div class="col-md-6 col-lg-4">
+            <div class="report-card primary" onclick="generarReporte('stock_categoria')">
+                <div class="text-center">
+                    <div class="report-icon">📊</div>
+                    <h5>Stock por Categoría</h5>
+                    <p class="text-muted">Distribución de stock por categorías</p>
+                    <div class="mt-3">
+                        <button class="btn btn-outline-primary" onclick="event.stopPropagation(); generarReporte('stock_categoria')">
+                            Generar Reporte
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Productos Próximos a Vencer -->
+        <div class="col-md-6 col-lg-4">
+            <div class="report-card warning" onclick="generarReporte('proximos_vencer')">
+                <div class="text-center">
+                    <div class="report-icon">⏰</div>
+                    <h5>Próximos a Vencer</h5>
+                    <p class="text-muted">Lotes que vencen pronto</p>
+                    <div class="mt-3">
+                        <select class="form-select" id="dias-vencer" onclick="event.stopPropagation()">
+                            <option value="7">Próximos 7 días</option>
+                            <option value="15">Próximos 15 días</option>
+                            <option value="30">Próximos 30 días</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Ajustes de Inventario -->
+        <div class="col-md-6 col-lg-4">
+            <div class="report-card danger" onclick="generarReporte('ajustes')">
+                <div class="text-center">
+                    <div class="report-icon">📝</div>
+                    <h5>Ajustes de Inventario</h5>
+                    <p class="text-muted">Historial de ajustes realizados</p>
+                    <div class="mt-3">
+                        <select class="form-select" id="periodo-ajustes" onclick="event.stopPropagation()">
+                            <option value="mes_actual">Mes Actual</option>
+                            <option value="mes_anterior">Mes Anterior</option>
+                            <option value="trimestre">Último Trimestre</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Productos Sin Movimiento -->
+        <div class="col-md-6 col-lg-4">
+            <div class="report-card info" onclick="generarReporte('sin_movimiento')">
+                <div class="text-center">
+                    <div class="report-icon">💤</div>
+                    <h5>Productos Sin Movimiento</h5>
+                    <p class="text-muted">Productos con baja rotación</p>
+                    <div class="mt-3">
+                        <select class="form-select" id="dias-sin-movimiento" onclick="event.stopPropagation()">
+                            <option value="30">Sin ventas 30 días</option>
+                            <option value="60">Sin ventas 60 días</option>
+                            <option value="90">Sin ventas 90 días</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Seleccionar Producto -->
+<div class="modal fade" id="productoModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Seleccionar Producto</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">Buscar Producto</label>
+                    <input type="text" class="form-control" id="buscar-producto" placeholder="Nombre del producto...">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Producto</label>
+                    <select class="form-select" id="select-producto" size="10">
+                        <option value="">Cargando...</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Período</label>
+                    <select class="form-select" id="periodo-producto">
+                        <option value="30">Últimos 30 días</option>
+                        <option value="60">Últimos 60 días</option>
+                        <option value="90">Últimos 90 días</option>
+                        <option value="180">Últimos 6 meses</option>
+                        <option value="365">Último año</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="generarReporteProducto()">Generar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Resultado -->
+<div class="modal fade" id="resultadoModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="resultado-titulo">Reporte</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="resultado-body">
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary"></div>
+                    <p class="mt-3">Generando reporte...</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                <button type="button" class="btn btn-success" onclick="exportarExcel()">
+                    <i class="bi bi-file-earmark-excel"></i> Exportar Excel
+                </button>
+                <button type="button" class="btn btn-primary" onclick="window.print()">
+                    <i class="bi bi-printer"></i> Imprimir
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let reporteActual = null;
+
+// Cargar productos para el selector
+async function cargarProductos() {
+    try {
+        const response = await fetch('/api/inventory/productos/?page_size=1000');
+        const data = await response.json();
+        
+        const select = document.getElementById('select-producto');
+        select.innerHTML = data.results.map(p => 
+            `<option value="${p.id}">${p.nombre} (Stock: ${p.stock_actual})</option>`
+        ).join('');
+        
+        // Búsqueda
+        document.getElementById('buscar-producto').addEventListener('input', function(e) {
+            const busqueda = e.target.value.toLowerCase();
+            Array.from(select.options).forEach(option => {
+                const texto = option.textContent.toLowerCase();
+                option.style.display = texto.includes(busqueda) ? '' : 'none';
+            });
+        });
+    } catch (error) {
+        console.error('Error:', error);
+    }
+}
+
+// Mostrar modal producto
+function mostrarModalProducto() {
+    const modal = new bootstrap.Modal(document.getElementById('productoModal'));
+    cargarProductos();
+    modal.show();
+}
+
+// Generar reporte
+async function generarReporte(tipo) {
+    const modal = new bootstrap.Modal(document.getElementById('resultadoModal'));
+    modal.show();
+    
+    reporteActual = tipo;
+    
+    let endpoint = '';
+    let params = {};
+    
+    switch(tipo) {
+        case 'valorizacion':
+            endpoint = '/api/inventory/reportes/valorizacion/';
+            params.periodo = document.getElementById('periodo-valorizacion').value;
+            break;
+        case 'rotacion':
+            endpoint = '/api/inventory/reportes/rotacion/';
+            params.dias = document.getElementById('periodo-rotacion').value;
+            break;
+        case 'descartes':
+            endpoint = '/api/inventory/reportes/descartes/';
+            params.periodo = document.getElementById('periodo-descartes').value;
+            break;
+        case 'compras':
+            endpoint = '/api/inventory/reportes/compras/';
+            params.periodo = document.getElementById('periodo-compras').value;
+            break;
+        case 'stock_categoria':
+            endpoint = '/api/inventory/reportes/stock-categoria/';
+            break;
+        case 'proximos_vencer':
+            endpoint = '/api/inventory/lotes/';
+            params.proximo_vencer = document.getElementById('dias-vencer').value;
+            break;
+        case 'ajustes':
+            endpoint = '/api/inventory/ajustes/';
+            params.periodo = document.getElementById('periodo-ajustes').value;
+            break;
+        case 'sin_movimiento':
+            endpoint = '/api/inventory/reportes/sin-movimiento/';
+            params.dias = document.getElementById('dias-sin-movimiento').value;
+            break;
+    }
+    
+    try {
+        const queryString = new URLSearchParams(params).toString();
+        const response = await fetch(`${endpoint}?${queryString}`);
+        const data = await response.json();
+        
+        mostrarResultado(tipo, data);
+    } catch (error) {
+        console.error('Error:', error);
+        document.getElementById('resultado-body').innerHTML = 
+            '<div class="alert alert-danger">Error al generar reporte</div>';
+    }
+}
+
+// Generar reporte de producto
+async function generarReporteProducto() {
+    const productoId = document.getElementById('select-producto').value;
+    if (!productoId) {
+        alert('Seleccione un producto');
+        return;
+    }
+    
+    bootstrap.Modal.getInstance(document.getElementById('productoModal')).hide();
+    
+    const modal = new bootstrap.Modal(document.getElementById('resultadoModal'));
+    modal.show();
+    
+    try {
+        const response = await fetch(`/api/inventory/productos/${productoId}/kardex/`);
+        const data = await response.json();
+        
+        const productoResponse = await fetch(`/api/inventory/productos/${productoId}/`);
+        const producto = await productoResponse.json();
+        
+        document.getElementById('resultado-titulo').textContent = `Kardex: ${producto.nombre}`;
+        
+        document.getElementById('resultado-body').innerHTML = `
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Fecha</th>
+                            <th>Tipo</th>
+                            <th>Lote</th>
+                            <th class="text-end">Cantidad</th>
+                            <th class="text-end">Saldo</th>
+                            <th>Descripción</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${data.map(mov => `
+                            <tr>
+                                <td>${new Date(mov.fecha_movimiento).toLocaleString('es-CO')}</td>
+                                <td><span class="badge bg-${mov.tipo_movimiento === 'ENTRADA' ? 'success' : 'danger'}">${mov.tipo_movimiento}</span></td>
+                                <td>${mov.lote_numero || '-'}</td>
+                                <td class="text-end ${mov.cantidad > 0 ? 'text-success' : 'text-danger'}">
+                                    <strong>${Math.abs(mov.cantidad)}</strong>
+                                </td>
+                                <td class="text-end"><strong>${mov.saldo_cantidad}</strong></td>
+                                <td>${mov.descripcion || '-'}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            </div>
+        `;
+    } catch (error) {
+        console.error('Error:', error);
+    }
+}
+
+// Mostrar resultado
+function mostrarResultado(tipo, data) {
+    const titulos = {
+        'valorizacion': 'Valorización de Inventario',
+        'rotacion': 'Rotación de Productos',
+        'descartes': 'Descartes y Mermas',
+        'compras': 'Compras por Proveedor',
+        'stock_categoria': 'Stock por Categoría',
+        'proximos_vencer': 'Productos Próximos a Vencer',
+        'ajustes': 'Ajustes de Inventario',
+        'sin_movimiento': 'Productos Sin Movimiento'
+    };
+    
+    document.getElementById('resultado-titulo').textContent = titulos[tipo];
+    
+    // Aquí puedes personalizar la visualización según el tipo de reporte
+    document.getElementById('resultado-body').innerHTML = `
+        <div class="alert alert-info">
+            <strong>Reporte generado exitosamente</strong><br>
+            Se encontraron ${data.results ? data.results.length : data.length} registros.
+        </div>
+        <pre>${JSON.stringify(data, null, 2)}</pre>
+    `;
+}
+
+// Exportar a Excel
+function exportarExcel() {
+    alert('Función de exportación en desarrollo');
+}
+
+// Inicializar
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('Módulo de reportes cargado');
+});
+</script>
+{% endblock %}

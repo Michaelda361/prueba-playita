@@ -1625,7 +1625,7 @@ document.addEventListener('DOMContentLoaded', function() {
             guardarProductoBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Guardando...';
             
             try {
-                const response = await fetch('/inventory/producto/crear/ajax/', {
+                const response = await fetch('/suppliers/producto/crear_ajax/', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',

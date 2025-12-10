@@ -1,6 +1,0 @@
-<form id="create-lote-form" action="{% url 'lote_create' producto.pk %}" method="post">
-    {% csrf_token %}
-    {% include 'inventory/lote_form_fields.html' with form=form %}
-    <button type="submit" class="btn btn-primary mt-3">Guardar Lote</button>
-    <button type="button" class="btn btn-secondary mt-3" id="cancel-new-lote">Cancelar</button>
-</form>

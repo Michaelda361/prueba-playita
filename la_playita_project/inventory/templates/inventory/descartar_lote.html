@@ -10,7 +10,7 @@
             <!-- Breadcrumb -->
             <nav aria-label="breadcrumb">
                 <ol class="breadcrumb">
-                    <li class="breadcrumb-item"><a href="{% url 'inventory:inventario_list' %}">Inventario</a></li>
+                    <li class="breadcrumb-item"><a href="{% url 'inventory:productos_list' %}">Inventario</a></li>
                     <li class="breadcrumb-item active">Descartar Productos</li>
                 </ol>
             </nav>
@@ -63,7 +63,7 @@
                     <i class="bi bi-exclamation-triangle me-2"></i>
                     <strong>Advertencia:</strong> Este lote no tiene unidades disponibles para descartar.
                 </div>
-                <a href="{% url 'inventory:inventario_list' %}" class="btn btn-secondary">
+                <a href="{% url 'inventory:productos_list' %}" class="btn btn-secondary">
                     <i class="bi bi-arrow-left me-2"></i>Volver al Inventario
                 </a>
             {% else %}
@@ -163,7 +163,7 @@
                                 <button type="submit" class="btn btn-danger">
                                     <i class="bi bi-trash me-2"></i>Confirmar Descarte
                                 </button>
-                                <a href="{% url 'inventory:inventario_list' %}" class="btn btn-secondary">
+                                <a href="{% url 'inventory:productos_list' %}" class="btn btn-secondary">
                                     <i class="bi bi-x-circle me-2"></i>Cancelar
                                 </a>
                             </div>

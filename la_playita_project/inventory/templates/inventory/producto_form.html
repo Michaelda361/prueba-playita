@@ -1,29 +1,276 @@
 {% extends 'core/base.html' %}
 {% load static %}
+{% load widget_tweaks %}
 
-{% block title %}Editar Producto{% endblock %}
+{% block title %}{{ titulo|default:"Producto" }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .form-section {
+        background: #f8f9fa;
+        border-radius: 8px;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        border-left: 4px solid #0d6efd;
+    }
+    .form-section h5 {
+        color: #0d6efd;
+        margin-bottom: 1rem;
+        font-weight: 600;
+    }
+    .required-field::after {
+        content: " *";
+        color: #dc3545;
+    }
+    .form-help {
+        font-size: 0.875rem;
+        color: #6c757d;
+        margin-top: 0.25rem;
+    }
+    .input-group-text {
+        background-color: #e9ecef;
+        border-color: #ced4da;
+    }
+    .btn-add-category {
+        border-top-left-radius: 0;
+        border-bottom-left-radius: 0;
+    }
+</style>
+{% endblock %}
 
 {% block content %}
-<div class="container mt-4">
+<div class="container-fluid py-4">
     <div class="row justify-content-center">
-        <div class="col-md-8">
-            <div class="card shadow-sm">
-                <div class="card-header">
-                    <h1 class="mb-0">Editar Producto: {{ producto.nombre }}</h1>
+        <div class="col-lg-8 col-xl-7">
+            <!-- Header -->
+            <div class="d-flex align-items-center mb-4">
+                <div class="me-3">
+                    <div class="bg-primary rounded-circle d-flex align-items-center justify-content-center" style="width: 48px; height: 48px;">
+                        <i class="bi bi-box-seam text-white fs-5"></i>
+                    </div>
                 </div>
-                <div class="card-body">
-                    <form method="post">
-                        {% include 'inventory/producto_form_fields.html' %}
-                        <div class="d-flex justify-content-between mt-4">
-                            <a href="{% url 'inventory:inventario_list' %}" class="btn btn-secondary">Cancelar</a>
-                            <button type="submit" class="btn btn-primary">Guardar Cambios</button>
-                        </div>
-                    </form>
+                <div>
+                    <h2 class="mb-1">{{ titulo|default:"Producto" }}</h2>
+                    <p class="text-muted mb-0">Complete la información del producto</p>
                 </div>
             </div>
+
+            {% if messages %}
+                {% for message in messages %}
+                    <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                        <i class="bi bi-{% if message.tags == 'success' %}check-circle{% elif message.tags == 'error' %}exclamation-triangle{% else %}info-circle{% endif %} me-2"></i>
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+
+            <form method="post" novalidate>
+                {% csrf_token %}
+                
+                <!-- Información Básica -->
+                <div class="form-section">
+                    <h5><i class="bi bi-info-circle me-2"></i>Información Básica</h5>
+                    <div class="row g-3">
+                        <div class="col-md-8">
+                            <label for="{{ form.nombre.id_for_label }}" class="form-label required-field">{{ form.nombre.label }}</label>
+                            {{ form.nombre }}
+                            {% if form.nombre.errors %}
+                                <div class="text-danger small mt-1">{{ form.nombre.errors.0 }}</div>
+                            {% endif %}
+                            <div class="form-help">Nombre único del producto en el inventario</div>
+                        </div>
+
+                        <div class="col-md-4">
+                            <label for="{{ form.codigo_barras.id_for_label }}" class="form-label">{{ form.codigo_barras.label }}</label>
+                            {{ form.codigo_barras }}
+                            {% if form.codigo_barras.errors %}
+                                <div class="text-danger small mt-1">{{ form.codigo_barras.errors.0 }}</div>
+                            {% endif %}
+                            <div class="form-help">Para escaneo rápido</div>
+                        </div>
+
+                        <div class="col-12">
+                            <label for="{{ form.descripcion.id_for_label }}" class="form-label">{{ form.descripcion.label }}</label>
+                            {{ form.descripcion }}
+                            {% if form.descripcion.errors %}
+                                <div class="text-danger small mt-1">{{ form.descripcion.errors.0 }}</div>
+                            {% endif %}
+                            <div class="form-help">Descripción detallada del producto</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Clasificación -->
+                <div class="form-section">
+                    <h5><i class="bi bi-tags me-2"></i>Clasificación</h5>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label for="{{ form.categoria.id_for_label }}" class="form-label required-field">{{ form.categoria.label }}</label>
+                            <div class="input-group">
+                                {{ form.categoria }}
+                                <button type="button" class="btn btn-outline-secondary btn-add-category" data-bs-toggle="modal" data-bs-target="#nuevaCategoriaModal" title="Crear nueva categoría">
+                                    <i class="bi bi-plus"></i>
+                                </button>
+                            </div>
+                            {% if form.categoria.errors %}
+                                <div class="text-danger small mt-1">{{ form.categoria.errors.0 }}</div>
+                            {% endif %}
+                            <div class="form-help">Categoría para organizar el inventario</div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label for="{{ form.tasa_iva.id_for_label }}" class="form-label required-field">{{ form.tasa_iva.label }}</label>
+                            {{ form.tasa_iva }}
+                            {% if form.tasa_iva.errors %}
+                                <div class="text-danger small mt-1">{{ form.tasa_iva.errors.0 }}</div>
+                            {% endif %}
+                            <div class="form-help">Impuesto aplicable al producto</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Precios y Stock -->
+                <div class="form-section">
+                    <h5><i class="bi bi-currency-dollar me-2"></i>Precios y Stock</h5>
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label for="{{ form.precio_unitario.id_for_label }}" class="form-label required-field">{{ form.precio_unitario.label }}</label>
+                            <div class="input-group">
+                                <span class="input-group-text">$</span>
+                                {{ form.precio_unitario }}
+                            </div>
+                            {% if form.precio_unitario.errors %}
+                                <div class="text-danger small mt-1">{{ form.precio_unitario.errors.0 }}</div>
+                            {% endif %}
+                            <div class="form-help">Precio de venta al público</div>
+                        </div>
+
+                        <div class="col-md-4">
+                            <label for="{{ form.stock_minimo.id_for_label }}" class="form-label required-field">{{ form.stock_minimo.label }}</label>
+                            {{ form.stock_minimo }}
+                            {% if form.stock_minimo.errors %}
+                                <div class="text-danger small mt-1">{{ form.stock_minimo.errors.0 }}</div>
+                            {% endif %}
+                            <div class="form-help">Cantidad mínima para alertas</div>
+                        </div>
+
+                        <div class="col-md-4">
+                            <label for="{{ form.stock_maximo.id_for_label }}" class="form-label">{{ form.stock_maximo.label }}</label>
+                            {{ form.stock_maximo }}
+                            {% if form.stock_maximo.errors %}
+                                <div class="text-danger small mt-1">{{ form.stock_maximo.errors.0 }}</div>
+                            {% endif %}
+                            <div class="form-help">Límite máximo recomendado</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Configuración Adicional -->
+                <div class="form-section">
+                    <h5><i class="bi bi-gear me-2"></i>Configuración Adicional</h5>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label for="{{ form.ubicacion.id_for_label }}" class="form-label">{{ form.ubicacion.label }}</label>
+                            {{ form.ubicacion }}
+                            {% if form.ubicacion.errors %}
+                                <div class="text-danger small mt-1">{{ form.ubicacion.errors.0 }}</div>
+                            {% endif %}
+                            <div class="form-help">Ubicación física en la bodega</div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label for="{{ form.estado.id_for_label }}" class="form-label">{{ form.estado.label }}</label>
+                            {{ form.estado }}
+                            {% if form.estado.errors %}
+                                <div class="text-danger small mt-1">{{ form.estado.errors.0 }}</div>
+                            {% endif %}
+                            <div class="form-help">Estado actual del producto</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Botones de Acción -->
+                <div class="d-flex justify-content-between align-items-center mt-4 pt-3 border-top">
+                    <a href="{% url 'inventory:productos_list' %}" class="btn btn-outline-secondary">
+                        <i class="bi bi-arrow-left me-2"></i>Volver al Listado
+                    </a>
+                    <div>
+                        <button type="button" class="btn btn-outline-primary me-2" onclick="limpiarFormulario()">
+                            <i class="bi bi-arrow-clockwise me-2"></i>Limpiar
+                        </button>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-check-circle me-2"></i>{{ accion|default:"Guardar" }}
+                        </button>
+                    </div>
+                </div>
+            </form>
         </div>
     </div>
 </div>
 
 {% include 'inventory/_nueva_categoria_modal.html' %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function limpiarFormulario() {
+    if (confirm('¿Está seguro de que desea limpiar todos los campos?')) {
+        document.querySelector('form').reset();
+        // Enfocar el primer campo
+        document.querySelector('#id_nombre').focus();
+    }
+}
+
+// Validación en tiempo real
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.querySelector('form');
+    const inputs = form.querySelectorAll('input, select, textarea');
+    
+    inputs.forEach(input => {
+        input.addEventListener('blur', function() {
+            validateField(this);
+        });
+    });
+    
+    // Validación del precio
+    const precioInput = document.querySelector('#id_precio_unitario');
+    if (precioInput) {
+        precioInput.addEventListener('input', function() {
+            const value = parseFloat(this.value);
+            if (value < 0) {
+                this.setCustomValidity('El precio debe ser mayor o igual a 0');
+            } else {
+                this.setCustomValidity('');
+            }
+        });
+    }
+    
+    // Validación del stock mínimo
+    const stockMinimoInput = document.querySelector('#id_stock_minimo');
+    if (stockMinimoInput) {
+        stockMinimoInput.addEventListener('input', function() {
+            const value = parseInt(this.value);
+            if (value < 0) {
+                this.setCustomValidity('El stock mínimo debe ser mayor o igual a 0');
+            } else {
+                this.setCustomValidity('');
+            }
+        });
+    }
+});
+
+function validateField(field) {
+    const errorDiv = field.parentNode.querySelector('.text-danger');
+    if (field.checkValidity()) {
+        field.classList.remove('is-invalid');
+        field.classList.add('is-valid');
+        if (errorDiv) errorDiv.style.display = 'none';
+    } else {
+        field.classList.remove('is-valid');
+        field.classList.add('is-invalid');
+        if (errorDiv) errorDiv.style.display = 'block';
+    }
+}
+</script>
 {% endblock %}

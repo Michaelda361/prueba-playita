@@ -240,7 +240,13 @@
                                 <span class="badge bg-danger">Salida</span>
                                 {% endif %}
                             </td>
-                            <td>{{ mov.cantidad }}</td>
+                            <td>
+                                {% if mov.cantidad < 0 %}
+                                    <span class="text-danger"><strong>{{ mov.cantidad|floatformat:0|cut:"-" }}</strong></span>
+                                {% else %}
+                                    <span class="text-success"><strong>{{ mov.cantidad }}</strong></span>
+                                {% endif %}
+                            </td>
                             <td>{{ mov.lote.numero_lote|default:"N/A" }}</td>
                         </tr>
                         {% endfor %}

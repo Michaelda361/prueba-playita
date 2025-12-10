@@ -1,0 +1,565 @@
+{% extends 'core/base.html' %}
+{% load static %}
+{% load humanize %}
+
+{% block title %}{{ producto.nombre }} - Detalle{% endblock %}
+
+{% block extra_css %}
+<style>
+    .product-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 2rem;
+        border-radius: 12px;
+        margin-bottom: 2rem;
+    }
+    .nav-tabs .nav-link {
+        color: #6c757d;
+        border: none;
+        padding: 1rem 1.5rem;
+        font-weight: 500;
+    }
+    .nav-tabs .nav-link.active {
+        color: #667eea;
+        background: white;
+        border-bottom: 3px solid #667eea;
+    }
+    .tab-content {
+        background: white;
+        border-radius: 0 0 12px 12px;
+        padding: 2rem;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+    .lote-card {
+        border-left: 4px solid;
+        transition: all 0.2s;
+        margin-bottom: 1rem;
+    }
+    .lote-card:hover {
+        transform: translateX(4px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    .lote-vencido { border-left-color: #dc3545; background: #fff5f5; }
+    .lote-critico { border-left-color: #fd7e14; background: #fff8f0; }
+    .lote-proximo { border-left-color: #ffc107; background: #fffbf0; }
+    .lote-normal { border-left-color: #28a745; background: #f8fff8; }
+    .lote-agotado { border-left-color: #6c757d; background: #f8f9fa; opacity: 0.7; }
+    
+    .stat-box {
+        background: white;
+        border-radius: 8px;
+        padding: 1rem;
+        text-align: center;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Header del Producto -->
+    <div class="product-header">
+        <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
+            <div class="flex-grow-1">
+                <div class="d-flex align-items-center gap-3 mb-3">
+                    <h2 class="mb-0">{{ producto.nombre }}</h2>
+                    <span class="badge bg-light text-dark">{{ producto.categoria.nombre }}</span>
+                    {% if producto.estado_stock == 'SIN_STOCK' %}
+                        <span class="badge bg-danger">SIN STOCK</span>
+                    {% elif producto.estado_stock == 'STOCK_CRITICO' %}
+                        <span class="badge bg-warning text-dark">STOCK CRÍTICO</span>
+                    {% elif producto.estado_stock == 'STOCK_BAJO' %}
+                        <span class="badge bg-warning">STOCK BAJO</span>
+                    {% else %}
+                        <span class="badge bg-success">NORMAL</span>
+                    {% endif %}
+                </div>
+                
+                <div class="row g-3">
+                    <div class="col-auto">
+                        <small class="opacity-75">Stock Actual:</small>
+                        <strong class="fs-5">{{ producto.stock_actual }}</strong>
+                        <small class="opacity-75">/ {{ producto.stock_minimo }} mín</small>
+                    </div>
+                    <div class="col-auto">
+                        <small class="opacity-75">Precio Venta:</small>
+                        <strong class="fs-5">${{ producto.precio_unitario|floatformat:0|intcomma }}</strong>
+                    </div>
+                    <div class="col-auto">
+                        <small class="opacity-75">Costo Promedio:</small>
+                        <strong class="fs-5">${{ producto.costo_promedio|floatformat:0|intcomma }}</strong>
+                    </div>
+                    <div class="col-auto">
+                        <small class="opacity-75">Valor Total:</small>
+                        <strong class="fs-5">${{ valor_total|floatformat:0|intcomma }}</strong>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="d-flex gap-2 flex-wrap">
+                <a href="{% url 'inventory:productos_list' %}" class="btn btn-light">
+                    <i class="bi bi-arrow-left"></i> Volver
+                </a>
+                <a href="{% url 'inventory:producto_update' producto.id %}" class="btn btn-light">
+                    <i class="bi bi-pencil"></i> Editar
+                </a>
+                <button class="btn btn-light" onclick="window.print()">
+                    <i class="bi bi-printer"></i> Imprimir
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabs de Navegación -->
+    <ul class="nav nav-tabs" id="productoTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="info-tab" data-bs-toggle="tab" data-bs-target="#info" type="button">
+                <i class="bi bi-info-circle"></i> Información
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="lotes-tab" data-bs-toggle="tab" data-bs-target="#lotes" type="button">
+                <i class="bi bi-box-seam"></i> Lotes
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="kardex-tab" data-bs-toggle="tab" data-bs-target="#kardex" type="button">
+                <i class="bi bi-journal-text"></i> Kardex
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="movimientos-tab" data-bs-toggle="tab" data-bs-target="#movimientos" type="button">
+                <i class="bi bi-arrow-left-right"></i> Movimientos
+            </button>
+        </li>
+    </ul>
+
+    <!-- Contenido de los Tabs -->
+    <div class="tab-content" id="productoTabsContent">
+        <!-- Tab: Información -->
+        <div class="tab-pane fade show active" id="info" role="tabpanel">
+            <div class="row g-4">
+                <div class="col-md-6">
+                    <h5 class="mb-3">Datos Generales</h5>
+                    <table class="table">
+                        <tr>
+                            <th width="40%">Nombre:</th>
+                            <td>{{ producto.nombre }}</td>
+                        </tr>
+                        <tr>
+                            <th>Categoría:</th>
+                            <td>{{ producto.categoria.nombre }}</td>
+                        </tr>
+                        <tr>
+                            <th>Descripción:</th>
+                            <td>{{ producto.descripcion|default:"Sin descripción" }}</td>
+                        </tr>
+                        <tr>
+                            <th>Ubicación:</th>
+                            <td>{{ producto.ubicacion|default:"No especificada" }}</td>
+                        </tr>
+                        <tr>
+                            <th>Estado:</th>
+                            <td>
+                                {% if producto.estado == 'activo' %}
+                                    <span class="badge bg-success">{{ producto.get_estado_display }}</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">{{ producto.get_estado_display }}</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+                
+                <div class="col-md-6">
+                    <h5 class="mb-3">Información Comercial</h5>
+                    <table class="table">
+                        <tr>
+                            <th width="40%">Precio Venta:</th>
+                            <td><strong>${{ producto.precio_unitario|floatformat:0|intcomma }}</strong></td>
+                        </tr>
+                        <tr>
+                            <th>Costo Promedio:</th>
+                            <td>${{ producto.costo_promedio|floatformat:0|intcomma }}</td>
+                        </tr>
+                        <tr>
+                            <th>IVA:</th>
+                            <td>{{ producto.tasa_iva.nombre }} ({{ producto.tasa_iva.porcentaje }}%)</td>
+                        </tr>
+                        <tr>
+                            <th>Stock Mínimo:</th>
+                            <td>{{ producto.stock_minimo }} unidades</td>
+                        </tr>
+                        <tr>
+                            <th>Stock Máximo:</th>
+                            <td>{{ producto.stock_maximo|default:"No definido" }}</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab: Lotes -->
+        <div class="tab-pane fade" id="lotes" role="tabpanel">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h5 class="mb-0">Lotes del Producto</h5>
+                <button class="btn btn-sm btn-primary" onclick="cargarLotes()">
+                    <i class="bi bi-arrow-clockwise"></i> Actualizar
+                </button>
+            </div>
+            
+            <!-- Resumen de Lotes -->
+            <div class="row g-3 mb-4">
+                <div class="col-md-3">
+                    <div class="stat-box border-start border-primary border-4">
+                        <div class="small text-muted">Total Lotes</div>
+                        <div class="fs-4 fw-bold" id="total-lotes">0</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="stat-box border-start border-success border-4">
+                        <div class="small text-muted">Activos</div>
+                        <div class="fs-4 fw-bold text-success" id="lotes-activos">0</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="stat-box border-start border-warning border-4">
+                        <div class="small text-muted">Por Vencer</div>
+                        <div class="fs-4 fw-bold text-warning" id="lotes-proximos">0</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="stat-box border-start border-danger border-4">
+                        <div class="small text-muted">Vencidos</div>
+                        <div class="fs-4 fw-bold text-danger" id="lotes-vencidos">0</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Lista de Lotes -->
+            <div id="lotes-container">
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary"></div>
+                    <p class="mt-2 text-muted">Cargando lotes...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab: Kardex -->
+        <div class="tab-pane fade" id="kardex" role="tabpanel">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h5 class="mb-0">Kardex de Inventario</h5>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-sm btn-outline-primary" onclick="exportarKardex()">
+                        <i class="bi bi-file-earmark-excel"></i> Exportar
+                    </button>
+                    <button class="btn btn-sm btn-primary" onclick="cargarKardex()">
+                        <i class="bi bi-arrow-clockwise"></i> Actualizar
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Filtros de Kardex -->
+            <div class="card mb-3">
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-3">
+                            <label class="form-label small">Desde</label>
+                            <input type="date" class="form-control form-control-sm" id="kardex-desde">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label small">Hasta</label>
+                            <input type="date" class="form-control form-control-sm" id="kardex-hasta">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label small">Tipo</label>
+                            <select class="form-select form-select-sm" id="kardex-tipo">
+                                <option value="">Todos</option>
+                                <option value="ENTRADA">Entradas</option>
+                                <option value="SALIDA">Salidas</option>
+                                <option value="AJUSTE">Ajustes</option>
+                                <option value="DESCARTE">Descartes</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3 d-flex align-items-end">
+                            <button class="btn btn-sm btn-primary w-100" onclick="filtrarKardex()">
+                                <i class="bi bi-funnel"></i> Filtrar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Tabla de Kardex -->
+            <div class="table-responsive">
+                <table class="table table-sm table-hover">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Fecha</th>
+                            <th>Tipo</th>
+                            <th>Lote</th>
+                            <th class="text-end">Cantidad</th>
+                            <th class="text-end">Saldo</th>
+                            <th>Descripción</th>
+                        </tr>
+                    </thead>
+                    <tbody id="kardex-tbody">
+                        <tr>
+                            <td colspan="6" class="text-center py-4">
+                                <div class="spinner-border text-primary spinner-border-sm"></div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Tab: Movimientos -->
+        <div class="tab-pane fade" id="movimientos" role="tabpanel">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h5 class="mb-0">Movimientos Recientes</h5>
+                <button class="btn btn-sm btn-primary" onclick="cargarMovimientos()">
+                    <i class="bi bi-arrow-clockwise"></i> Actualizar
+                </button>
+            </div>
+            
+            <div id="movimientos-container">
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary"></div>
+                    <p class="mt-2 text-muted">Cargando movimientos...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const productoId = {{ producto.id }};
+let lotesData = [];
+let kardexData = [];
+let movimientosData = [];
+
+// Cargar lotes
+async function cargarLotes() {
+    try {
+        const response = await fetch(`/api/inventory/lotes/?producto=${productoId}`);
+        const data = await response.json();
+        lotesData = data.results || [];
+        
+        renderizarLotes();
+    } catch (error) {
+        console.error('Error:', error);
+        document.getElementById('lotes-container').innerHTML = 
+            '<div class="alert alert-danger">Error al cargar lotes</div>';
+    }
+}
+
+// Renderizar lotes
+function renderizarLotes() {
+    const container = document.getElementById('lotes-container');
+    
+    // Actualizar resumen
+    const total = lotesData.length;
+    const activos = lotesData.filter(l => l.estado === 'activo' && l.cantidad_disponible > 0).length;
+    const proximos = lotesData.filter(l => l.estado_vencimiento === 'PROXIMO' || l.estado_vencimiento === 'CRITICO').length;
+    const vencidos = lotesData.filter(l => l.estado_vencimiento === 'VENCIDO').length;
+    
+    document.getElementById('total-lotes').textContent = total;
+    document.getElementById('lotes-activos').textContent = activos;
+    document.getElementById('lotes-proximos').textContent = proximos;
+    document.getElementById('lotes-vencidos').textContent = vencidos;
+    
+    if (lotesData.length === 0) {
+        container.innerHTML = '<div class="alert alert-info">No hay lotes registrados para este producto</div>';
+        return;
+    }
+    
+    // Ordenar por fecha de vencimiento
+    lotesData.sort((a, b) => new Date(a.fecha_caducidad) - new Date(b.fecha_caducidad));
+    
+    container.innerHTML = lotesData.map(lote => {
+        const claseEstado = `lote-${lote.estado_vencimiento.toLowerCase()}`;
+        const diasTexto = lote.dias_hasta_vencer < 0 
+            ? `Vencido hace ${Math.abs(lote.dias_hasta_vencer)} días`
+            : `Vence en ${lote.dias_hasta_vencer} días`;
+        
+        return `
+            <div class="card lote-card ${claseEstado}">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col-md-3">
+                            <h6 class="mb-1">Lote: ${lote.numero_lote}</h6>
+                            <small class="text-muted">${lote.proveedor_nombre || 'Sin proveedor'}</small>
+                        </div>
+                        <div class="col-md-2 text-center">
+                            <div class="fs-5 fw-bold">${lote.cantidad_disponible}</div>
+                            <small class="text-muted">unidades</small>
+                        </div>
+                        <div class="col-md-3">
+                            <small class="text-muted d-block">Vencimiento</small>
+                            <strong>${new Date(lote.fecha_caducidad).toLocaleDateString('es-CO')}</strong>
+                            <br><small class="${lote.dias_hasta_vencer < 0 ? 'text-danger' : 'text-muted'}">${diasTexto}</small>
+                        </div>
+                        <div class="col-md-2">
+                            <small class="text-muted d-block">Costo</small>
+                            <strong>$${parseFloat(lote.costo_unitario_lote).toLocaleString('es-CO')}</strong>
+                        </div>
+                        <div class="col-md-2 text-end">
+                            ${lote.cantidad_disponible > 0 && lote.estado !== 'descartado' ? `
+                                <a href="/inventory/lote/${lote.id}/descartar/" class="btn btn-sm btn-outline-danger">
+                                    <i class="bi bi-trash"></i> Descartar
+                                </a>
+                            ` : `
+                                <span class="badge bg-secondary">${lote.estado.toUpperCase()}</span>
+                            `}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+// Cargar kardex
+async function cargarKardex() {
+    try {
+        const response = await fetch(`/api/inventory/productos/${productoId}/kardex/`);
+        kardexData = await response.json();
+        renderizarKardex();
+    } catch (error) {
+        console.error('Error:', error);
+    }
+}
+
+// Renderizar kardex
+function renderizarKardex() {
+    const tbody = document.getElementById('kardex-tbody');
+    
+    if (kardexData.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-muted">No hay movimientos</td></tr>';
+        return;
+    }
+    
+    tbody.innerHTML = kardexData.map(mov => {
+        const fecha = new Date(mov.fecha_movimiento).toLocaleDateString('es-CO', {
+            year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit'
+        });
+        const tipoClass = mov.tipo_movimiento === 'ENTRADA' ? 'success' : 
+                         mov.tipo_movimiento === 'SALIDA' ? 'danger' : 'warning';
+        const cantidadClass = mov.cantidad > 0 ? 'text-success' : 'text-danger';
+        const cantidadIcon = mov.cantidad > 0 ? '↑' : '↓';
+        
+        return `
+            <tr>
+                <td><small>${fecha}</small></td>
+                <td><span class="badge bg-${tipoClass}">${mov.tipo_movimiento}</span></td>
+                <td><small>${mov.lote_numero || '-'}</small></td>
+                <td class="text-end ${cantidadClass}"><strong>${cantidadIcon} ${Math.abs(mov.cantidad)}</strong></td>
+                <td class="text-end"><strong>${mov.saldo_cantidad}</strong></td>
+                <td><small>${mov.descripcion || '-'}</small></td>
+            </tr>
+        `;
+    }).join('');
+}
+
+// Cargar movimientos
+async function cargarMovimientos() {
+    try {
+        const response = await fetch(`/api/inventory/movimientos/?producto=${productoId}&ordering=-fecha_movimiento`);
+        const data = await response.json();
+        movimientosData = data.results || [];
+        renderizarMovimientos();
+    } catch (error) {
+        console.error('Error:', error);
+    }
+}
+
+// Renderizar movimientos
+function renderizarMovimientos() {
+    const container = document.getElementById('movimientos-container');
+    
+    if (movimientosData.length === 0) {
+        container.innerHTML = '<div class="alert alert-info">No hay movimientos registrados</div>';
+        return;
+    }
+    
+    container.innerHTML = movimientosData.map(mov => {
+        const fecha = new Date(mov.fecha_movimiento).toLocaleDateString('es-CO', {
+            year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit'
+        });
+        const tipoClass = mov.tipo_movimiento === 'ENTRADA' ? 'success' : 
+                         mov.tipo_movimiento === 'SALIDA' ? 'danger' : 'warning';
+        
+        return `
+            <div class="card mb-2">
+                <div class="card-body py-2">
+                    <div class="row align-items-center">
+                        <div class="col-md-2">
+                            <small class="text-muted">${fecha}</small>
+                        </div>
+                        <div class="col-md-2">
+                            <span class="badge bg-${tipoClass}">${mov.tipo_movimiento}</span>
+                        </div>
+                        <div class="col-md-2 text-center">
+                            <strong class="text-${tipoClass}">${Math.abs(mov.cantidad)}</strong>
+                        </div>
+                        <div class="col-md-4">
+                            <small>${mov.descripcion || '-'}</small>
+                        </div>
+                        <div class="col-md-2 text-end">
+                            <small class="text-muted">${mov.usuario_nombre || '-'}</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+// Exportar kardex
+function exportarKardex() {
+    const csv = [
+        ['Fecha', 'Tipo', 'Lote', 'Cantidad', 'Saldo', 'Descripción'],
+        ...kardexData.map(mov => [
+            mov.fecha_movimiento,
+            mov.tipo_movimiento,
+            mov.lote_numero || '',
+            mov.cantidad,
+            mov.saldo_cantidad,
+            mov.descripcion || ''
+        ])
+    ].map(row => row.join(',')).join('\n');
+    
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `kardex_${productoId}_${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+}
+
+// Event listeners para tabs
+document.getElementById('lotes-tab').addEventListener('shown.bs.tab', function() {
+    if (lotesData.length === 0) cargarLotes();
+});
+
+document.getElementById('kardex-tab').addEventListener('shown.bs.tab', function() {
+    if (kardexData.length === 0) cargarKardex();
+});
+
+document.getElementById('movimientos-tab').addEventListener('shown.bs.tab', function() {
+    if (movimientosData.length === 0) cargarMovimientos();
+});
+
+// Inicializar
+document.addEventListener('DOMContentLoaded', function() {
+    // Cargar lotes por defecto si el tab está activo
+    const activeTab = document.querySelector('.tab-pane.active');
+    if (activeTab && activeTab.id === 'lotes') {
+        cargarLotes();
+    }
+});
+</script>
+{% endblock %}

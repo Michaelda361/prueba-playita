@@ -1,0 +1,297 @@
+{% extends 'core/base.html' %}
+{% load static %}
+{% load humanize %}
+
+{% block title %}Alertas de Stock{% endblock %}
+
+{% block extra_css %}
+<style>
+    .alert-card {
+        background: white;
+        border-left: 4px solid;
+        border-radius: 8px;
+        padding: 1.5rem;
+        margin-bottom: 1rem;
+        transition: all 0.2s;
+    }
+    .alert-card:hover {
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        transform: translateX(4px);
+    }
+    .alert-critica { border-left-color: #dc3545; }
+    .alert-alta { border-left-color: #fd7e14; }
+    .alert-media { border-left-color: #ffc107; }
+    .badge-critica { background-color: #dc3545; }
+    .badge-alta { background-color: #fd7e14; }
+    .badge-media { background-color: #ffc107; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="mb-1">🚨 Alertas de Inventario</h2>
+            <p class="text-muted mb-0">Productos que requieren atención</p>
+        </div>
+        <div>
+            <button class="btn btn-outline-primary me-2" onclick="generarAlertas()">
+                <i class="bi bi-arrow-clockwise"></i> Actualizar
+            </button>
+            <a href="{% url 'inventory:dashboard' %}" class="btn btn-secondary">
+                <i class="bi bi-arrow-left"></i> Volver
+            </a>
+        </div>
+    </div>
+
+    <!-- Filtros -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-3">
+                    <label class="form-label small">Tipo de Alerta</label>
+                    <select class="form-select" id="tipo-filter">
+                        <option value="">Todas</option>
+                        <option value="sin_stock">Sin Stock</option>
+                        <option value="stock_bajo">Stock Bajo</option>
+                        <option value="stock_critico">Stock Crítico</option>
+                        <option value="vencido">Vencido</option>
+                        <option value="proximo_vencer">Próximo a Vencer</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small">Prioridad</label>
+                    <select class="form-select" id="prioridad-filter">
+                        <option value="">Todas</option>
+                        <option value="critica">Crítica</option>
+                        <option value="alta">Alta</option>
+                        <option value="media">Media</option>
+                        <option value="baja">Baja</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small">Estado</label>
+                    <select class="form-select" id="estado-filter">
+                        <option value="activa">Activas</option>
+                        <option value="resuelta">Resueltas</option>
+                        <option value="ignorada">Ignoradas</option>
+                        <option value="">Todas</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small">&nbsp;</label>
+                    <button class="btn btn-primary w-100" onclick="aplicarFiltros()">
+                        <i class="bi bi-funnel"></i> Filtrar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Resumen -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-3">
+            <div class="card border-danger">
+                <div class="card-body text-center">
+                    <h3 class="text-danger mb-0" id="count-critica">0</h3>
+                    <small class="text-muted">Críticas</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-warning">
+                <div class="card-body text-center">
+                    <h3 class="text-warning mb-0" id="count-alta">0</h3>
+                    <small class="text-muted">Alta Prioridad</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-info">
+                <div class="card-body text-center">
+                    <h3 class="text-info mb-0" id="count-media">0</h3>
+                    <small class="text-muted">Media Prioridad</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-secondary">
+                <div class="card-body text-center">
+                    <h3 class="text-secondary mb-0" id="count-total">0</h3>
+                    <small class="text-muted">Total Activas</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Lista de Alertas -->
+    <div id="alertas-container">
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Cargando...</span>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let currentFilters = { estado: 'activa' };
+
+async function cargarAlertas() {
+    try {
+        const params = new URLSearchParams(currentFilters);
+        const response = await fetch(`/api/inventory/alertas/?${params}&ordering=-prioridad,-fecha_generacion`);
+        const data = await response.json();
+        
+        mostrarAlertas(data.results);
+        actualizarContadores(data.results);
+        
+    } catch (error) {
+        console.error('Error cargando alertas:', error);
+        document.getElementById('alertas-container').innerHTML = 
+            '<div class="alert alert-danger">Error al cargar alertas</div>';
+    }
+}
+
+function mostrarAlertas(alertas) {
+    const container = document.getElementById('alertas-container');
+    
+    if (alertas.length === 0) {
+        container.innerHTML = `
+            <div class="text-center py-5">
+                <i class="bi bi-check-circle fs-1 text-success"></i>
+                <p class="mt-3 text-muted">No hay alertas ${currentFilters.estado || 'activas'}</p>
+            </div>
+        `;
+        return;
+    }
+    
+    container.innerHTML = alertas.map(alerta => `
+        <div class="alert-card alert-${alerta.prioridad}">
+            <div class="d-flex justify-content-between align-items-start">
+                <div class="flex-grow-1">
+                    <div class="d-flex align-items-center mb-2">
+                        <span class="badge badge-${alerta.prioridad} me-2">${alerta.prioridad_display}</span>
+                        <span class="badge bg-secondary me-2">${alerta.tipo_display}</span>
+                        <strong>${alerta.titulo}</strong>
+                    </div>
+                    <p class="mb-2">${alerta.mensaje}</p>
+                    <div class="d-flex gap-3 small text-muted">
+                        ${alerta.valor_actual ? `<span>📊 ${alerta.valor_actual}</span>` : ''}
+                        ${alerta.valor_esperado ? `<span>🎯 ${alerta.valor_esperado}</span>` : ''}
+                        <span>📅 ${new Date(alerta.fecha_generacion).toLocaleDateString('es-CO')}</span>
+                    </div>
+                </div>
+                <div class="d-flex gap-2">
+                    ${alerta.estado === 'activa' ? `
+                        <button class="btn btn-sm btn-success" onclick="resolverAlerta(${alerta.id})" title="Resolver">
+                            <i class="bi bi-check"></i>
+                        </button>
+                        <button class="btn btn-sm btn-warning" onclick="ignorarAlerta(${alerta.id})" title="Ignorar">
+                            <i class="bi bi-x"></i>
+                        </button>
+                    ` : ''}
+                    <a href="/inventory/producto/${alerta.producto}/editar/" class="btn btn-sm btn-outline-primary" title="Ver Producto">
+                        <i class="bi bi-box-seam"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+    `).join('');
+}
+
+function actualizarContadores(alertas) {
+    const criticas = alertas.filter(a => a.prioridad === 'critica').length;
+    const altas = alertas.filter(a => a.prioridad === 'alta').length;
+    const medias = alertas.filter(a => a.prioridad === 'media').length;
+    
+    document.getElementById('count-critica').textContent = criticas;
+    document.getElementById('count-alta').textContent = altas;
+    document.getElementById('count-media').textContent = medias;
+    document.getElementById('count-total').textContent = alertas.length;
+}
+
+function aplicarFiltros() {
+    currentFilters = {};
+    
+    const tipo = document.getElementById('tipo-filter').value;
+    if (tipo) currentFilters.tipo_alerta = tipo;
+    
+    const prioridad = document.getElementById('prioridad-filter').value;
+    if (prioridad) currentFilters.prioridad = prioridad;
+    
+    const estado = document.getElementById('estado-filter').value;
+    if (estado) currentFilters.estado = estado;
+    
+    cargarAlertas();
+}
+
+async function generarAlertas() {
+    try {
+        const response = await fetch('/api/inventory/alertas/generar/', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        const data = await response.json();
+        alert(`✅ ${data.alertas_nuevas} alertas generadas`);
+        cargarAlertas();
+        
+    } catch (error) {
+        console.error('Error generando alertas:', error);
+        alert('❌ Error al generar alertas');
+    }
+}
+
+async function resolverAlerta(id) {
+    if (!confirm('¿Marcar esta alerta como resuelta?')) return;
+    
+    try {
+        const response = await fetch(`/api/inventory/alertas/${id}/resolver/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ notas: 'Resuelta desde módulo de alertas' })
+        });
+        
+        if (response.ok) {
+            cargarAlertas();
+        }
+        
+    } catch (error) {
+        console.error('Error resolviendo alerta:', error);
+    }
+}
+
+async function ignorarAlerta(id) {
+    if (!confirm('¿Ignorar esta alerta?')) return;
+    
+    try {
+        const response = await fetch(`/api/inventory/alertas/${id}/ignorar/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ notas: 'Ignorada desde módulo de alertas' })
+        });
+        
+        if (response.ok) {
+            cargarAlertas();
+        }
+        
+    } catch (error) {
+        console.error('Error ignorando alerta:', error);
+    }
+}
+
+document.addEventListener('DOMContentLoaded', cargarAlertas);
+</script>
+{% endblock %}

@@ -8,25 +8,98 @@ from django.forms import inlineformset_factory
 
 class ProductoForm(forms.ModelForm):
     precio_unitario = forms.DecimalField(
+        label='Precio de Venta',
         max_digits=12, 
         decimal_places=2,
         validators=[MinValueValidator(0)],
-        widget=forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'})
+        widget=forms.NumberInput(attrs={
+            'class': 'form-control', 
+            'step': '0.01',
+            'placeholder': '0.00'
+        })
     )
     stock_minimo = forms.IntegerField(
+        label='Stock Mínimo',
         validators=[MinValueValidator(0)],
-        widget=forms.NumberInput(attrs={'class': 'form-control'})
+        widget=forms.NumberInput(attrs={
+            'class': 'form-control',
+            'placeholder': '10'
+        })
+    )
+    stock_maximo = forms.IntegerField(
+        label='Stock Máximo',
+        required=False,
+        validators=[MinValueValidator(0)],
+        widget=forms.NumberInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Opcional'
+        })
+    )
+    codigo_barras = forms.CharField(
+        label='Código de Barras',
+        required=False,
+        max_length=50,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Opcional'
+        })
+    )
+    ubicacion = forms.CharField(
+        label='Ubicación en Bodega',
+        required=False,
+        max_length=50,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Ej: Pasillo A, Estante 3'
+        })
     )
 
     class Meta:
         model = Producto
-        fields = ['nombre', 'tasa_iva', 'precio_unitario', 'descripcion', 'stock_minimo', 'categoria']
+        fields = [
+            'nombre', 'codigo_barras', 'descripcion', 'categoria', 'tasa_iva', 
+            'precio_unitario', 'stock_minimo', 'stock_maximo', 'ubicacion', 'estado'
+        ]
         widgets = {
-            'nombre': forms.TextInput(attrs={'class': 'form-control'}),
-            'descripcion': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
+            'nombre': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Ej: Leche Entera 1L'
+            }),
+            'descripcion': forms.Textarea(attrs={
+                'class': 'form-control', 
+                'rows': 3,
+                'placeholder': 'Descripción del producto'
+            }),
             'categoria': forms.Select(attrs={'class': 'form-select'}),
             'tasa_iva': forms.Select(attrs={'class': 'form-select'}),
+            'estado': forms.Select(attrs={'class': 'form-select'}),
         }
+        labels = {
+            'nombre': 'Nombre del Producto',
+            'descripcion': 'Descripción',
+            'categoria': 'Categoría',
+            'tasa_iva': 'Tasa IVA',
+            'estado': 'Estado',
+        }
+
+
+class ProductoAjaxForm(forms.ModelForm):
+    """Formulario simplificado para crear productos vía AJAX"""
+    precio_unitario = forms.DecimalField(
+        max_digits=12, 
+        decimal_places=2,
+        validators=[MinValueValidator(0)],
+        widget=forms.NumberInput(attrs={'step': '0.01'})
+    )
+    stock_minimo = forms.IntegerField(
+        validators=[MinValueValidator(0)],
+        widget=forms.NumberInput()
+    )
+
+    class Meta:
+        model = Producto
+        fields = ['nombre', 'descripcion', 'categoria', 'tasa_iva', 'precio_unitario', 'stock_minimo']
+
 
 class CategoriaForm(forms.ModelForm):
     class Meta:

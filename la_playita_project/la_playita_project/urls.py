@@ -17,6 +17,7 @@ urlpatterns = [
 
     # Inventario
     path('inventory/', include('inventory.urls', namespace='inventory')),
+    path('api/inventory/', include('inventory.api_urls')),
 
     # Clientes
     path('clients/', include('clients.urls', namespace='clients')),
